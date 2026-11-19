@@ -5,6 +5,7 @@ import { raycast } from './physics.js';
 import { getHeight, isLand } from './world/terrain.js';
 import { weaponModel, consumableModel, ammoModel, materialModel, chestModel, ammoBoxModel } from './models.js';
 import { glowTexture } from './textures.js';
+import { settings } from './settings-store.js';
 
 const CLASS_WEIGHTS = [['ar', 30], ['shotgun', 25], ['smg', 20], ['pistol', 15], ['sniper', 10]];
 const RARITY_WEIGHTS = [40, 30, 18, 9, 3];
@@ -181,9 +182,11 @@ export function createLoot(scene, fx) {
     }
     for (const ch of chars) {
       if (!ch.alive || ch.mode !== 'ground') continue;
+      // ammo/mats always; weapons too for the player with Auto Pick Up on and a free slot
+      const auto = !ch.isBot && settings.autoPickup === 'On' && ch.hands.inv.slots.includes(null);
       for (let i = ground.length - 1; i >= 0; i--) {
         const e = ground[i];
-        if (e.item || e.t < 1 || e.pos.distanceToSquared(ch.pos) > 2.2) continue;
+        if ((e.item && !(auto && e.item.kind === 'weapon')) || e.t < 1 || e.pos.distanceToSquared(ch.pos) > 2.2) continue;
         take(e, ch.hands);
       }
     }

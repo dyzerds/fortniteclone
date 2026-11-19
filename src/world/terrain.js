@@ -323,14 +323,17 @@ export function createTerrain(scene) {
       m.setColorAt(n, grassCol);
       n++;
     }
-    m.count = n;
+    m.userData.n = n;
+    m.count = grassLevel === 'Low' ? n >> 1 : n;
     m.receiveShadow = true;
     m.computeBoundingSphere();
     m.frustumCulled = true;
     return m;
   }
+  let grassLevel = 'High';
   function updateGrass(cam, t) {
     grassTime.value = t;
+    if (grassLevel === 'Off') return;
     const ccx = Math.floor(cam.x / GRASS_CHUNK), ccz = Math.floor(cam.z / GRASS_CHUNK);
     const want = new Set();
     for (let dz = -GRASS_RADIUS; dz <= GRASS_RADIUS; dz++) for (let dx = -GRASS_RADIUS; dx <= GRASS_RADIUS; dx++) {
@@ -344,6 +347,12 @@ export function createTerrain(scene) {
   return {
     ground, water,
     update(dt, t, camPos) { shakeProps(dt); updateGrass(camPos, t); water.material.uniforms.uTime.value = t; },
+    setGrass(level) {
+      grassLevel = level;
+      for (const [key, c] of chunks) {
+        if (level === 'Off') { scene.remove(c); c.dispose(); chunks.delete(key); } else c.count = level === 'Low' ? c.userData.n >> 1 : c.userData.n;
+      }
+    },
   };
 }
 

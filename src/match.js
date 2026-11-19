@@ -83,7 +83,7 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
 
   // ---- player input -> movement input + hands intent ----
   const inp = emptyInput(), it = emptyIntent();
-  let sprintToggle = false;
+  let sprintToggle = false, emote = null;
   function readPlayer() {
     inp.mz = (input.down('forward') ? 1 : 0) - (input.down('back') ? 1 : 0);
     inp.mx = (input.down('right') ? 1 : 0) - (input.down('left') ? 1 : 0);
@@ -102,6 +102,9 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
     it.scroll = input.takeWheel();
     if (input.pressed('interact') && player.alive) loot.interact(hands);
     if (input.pressed('map')) events.map?.();
+    // emote: B cycles through the loadout's emotes; any action or leaving the ground stops it
+    if (inp.mx || inp.mz || inp.jump || it.fire || it.alt || it.build || it.edit || it.slot >= 0 || player.mode !== 'ground' || !player.alive) emote = null;
+    else if (input.pressed('emote')) { const l = player.cosmetics.emotes ?? []; emote = l[(l.indexOf(emote) + 1) % l.length] ?? null; }
   }
 
   // ---- start ----
@@ -114,7 +117,7 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
       ch.collider.setEnabled(true); ch.hands.inv.reset(); ch.hands.setMode('combat'); ch.avatar.root.visible = true;
       ch.setHeight(1.85); ch.crouching = false; ch.sliding = false;
     }
-    inp.crouch = false;
+    inp.crouch = false; emote = null; wall.wall.visible = true;
     time = 0; stormTick = 0; result = null;
     const r = rng(Math.floor(Math.random() * 1e9));
     circles = stormPlan(r, STORM, (x, z) => isLand(x, z));
@@ -221,8 +224,9 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
       // far characters animate at a lower rate
       ch.animAcc = (ch.animAcc ?? 0) + dt;
       if (d2 > 80 * 80 && ch.animAcc < 0.1) continue;
-      ch.animate(ch.animAcc, ch === player ? look.emote : null); ch.animAcc = 0;
-      ch.hands.updateVisual(ch === player && !!look.emote);
+      const em = ch === player ? emote ?? look.emote : null;
+      ch.animate(ch.animAcc, em); ch.animAcc = 0;
+      ch.hands.updateVisual(!!em);
     }
     if (state === 'bus' || barge.visible) {
       barge.position.copy(bus.pos); barge.rotation.y = bus.yaw;
@@ -242,6 +246,16 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
     chars, player, hands, loot, ctx, tick, frame, start, spawnPlayer, exitBus,
     get time() { return time; }, get state() { return state; }, get storm() { return stormNow; }, get circles() { return circles; },
     get alive() { return alive(); }, get result() { return result; }, get bus() { return bus; },
-    end() { state = 'idle'; barge.visible = false; },
+    // back to the menus: hide everything that belongs to the match
+    end() {
+      state = 'idle'; barge.visible = false; wall.wall.visible = false; emote = null;
+      for (const c of chars) { c.avatar.root.visible = false; if (c.hands.held) c.hands.held.visible = false; }
+    },
+    setLoadout(l) {
+      player.cosmetics = structuredClone(l);
+      player.avatar.setOutfit(l.outfit, l.backbling);
+      hands.dispose(); hands.held = null; hands.heldKey = '';
+      hands.glider?.removeFromParent(); hands.glider = null;
+    },
   };
 }

@@ -22,7 +22,6 @@ export const SCHEMA = [
   { tab: 'game', section: 'Combat', id: 'damageNumbers', label: 'Damage Numbers', type: 'choice', options: ['Off', 'On'], def: 'On', desc: 'Show floating damage numbers when you hit something.' },
   { tab: 'game', section: 'Building', id: 'turboBuild', label: 'Turbo Building', type: 'choice', options: ['Off', 'On'], def: 'On', desc: 'Hold fire to keep placing pieces as you aim.' },
   { tab: 'game', section: 'Building', id: 'editRelease', label: 'Confirm Edit on Release', type: 'choice', options: ['Off', 'On'], def: 'On', desc: 'Apply edits when you release the select button.' },
-  { tab: 'game', section: 'Building', id: 'resetBuild', label: 'Reset Building Choice', type: 'choice', options: ['Off', 'On'], def: 'On', desc: 'Return to the wall piece every time you enter build mode.' },
   { tab: 'game', section: 'Match', id: 'bots', label: 'Opponents', type: 'choice', options: ['9', '19', '29', '39'], def: '29', desc: 'Number of bots in a match. Fewer bots run faster on slow computers.' },
   { tab: 'game', section: 'Match', id: 'difficulty', label: 'Bot Difficulty', type: 'choice', options: ['Easy', 'Normal', 'Hard'], def: 'Normal', desc: 'How well bots aim, build and react.' },
 
@@ -39,6 +38,14 @@ export const SCHEMA = [
   { tab: 'audio', section: 'Volume', id: 'sfx', label: 'Sound Effects', type: 'range', min: 0, max: 1, step: 0.05, def: 1, desc: 'Weapons, building and footsteps.' },
   { tab: 'audio', section: 'Volume', id: 'ui', label: 'Menu Sounds', type: 'range', min: 0, max: 1, step: 0.05, def: 0.8, desc: 'Clicks and menu feedback.' },
 ];
+
+// Quality preset: picking one in the menu also sets these.
+export const PRESETS = {
+  Low: { shadows: 'Off', grass: 'Off', bloom: 'Off', renderScale: 0.75 },
+  Medium: { shadows: 'On', grass: 'Low', bloom: 'On', renderScale: 0.85 },
+  High: { shadows: 'On', grass: 'High', bloom: 'On', renderScale: 1 },
+  Epic: { shadows: 'On', grass: 'High', bloom: 'On', renderScale: 1 }, // Epic also lifts the pixel-ratio cap
+};
 
 const KEY = 'storm-royale.settings.v1';
 export const DEFAULTS = {

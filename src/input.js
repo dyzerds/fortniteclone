@@ -18,22 +18,19 @@ export const input = {
   takeWheel() { const w = wheel; wheel = 0; return w; },
   endTick() { pressed.clear(); released.clear(); },
   reset() { down.clear(); pressed.clear(); released.clear(); mdx = mdy = wheel = 0; },
-  lock(el) { if (!document.pointerLockElement) el.requestPointerLock?.({ unadjustedMovement: true })?.catch?.(() => el.requestPointerLock()); },
-  listeners: new Set(), // raw key listeners (keybind capture in settings)
+  lock(el) { if (!document.pointerLockElement) el.requestPointerLock?.({ unadjustedMovement: true })?.catch?.(() => el.requestPointerLock()?.catch?.(() => {})); }, // no gesture or too soon after Esc: ignore
 };
 
 const press = (code) => { if (!down.has(code)) pressed.add(code); down.add(code); };
 const release = (code) => { down.delete(code); released.add(code); };
 
 addEventListener('keydown', (e) => {
-  for (const fn of input.listeners) if (fn(e.code) === false) { e.preventDefault(); return; }
   if (!input.enabled) return;
   if (e.code === 'Tab' || e.code === 'Space' || (e.ctrlKey && e.code !== 'ControlLeft')) e.preventDefault();
   if (!e.repeat) press(e.code);
 });
 addEventListener('keyup', (e) => release(e.code));
 addEventListener('mousedown', (e) => {
-  for (const fn of input.listeners) if (fn(`Mouse${e.button}`) === false) return;
   if (input.enabled && input.locked) press(`Mouse${e.button}`);
 });
 addEventListener('mouseup', (e) => release(`Mouse${e.button}`));
