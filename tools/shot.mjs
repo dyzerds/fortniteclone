@@ -8,7 +8,7 @@ const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
 const logs = [];
 page.on('console', (m) => logs.push(`[${m.type()}] ${m.text()}`));
 page.on('pageerror', (e) => logs.push(`[pageerror] ${e.message}`));
-await page.goto(`http://localhost:5173/${path}`);
+await page.goto(path.startsWith("http") ? path : `http://localhost:5173/${path}`);
 await page.waitForFunction(() => window.__ready, null, { timeout: 30000 }).catch(() => logs.push('not ready'));
 if (script) await page.evaluate(readFileSync(script, 'utf8'));
 await page.waitForTimeout(Number(wait));

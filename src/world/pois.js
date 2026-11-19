@@ -114,6 +114,7 @@ export function createPois(scene) {
         spots.push({ x, y: getHeight(x, z), z, kind: n < 2 ? 'chest' : n < 4 ? 'floor' : 'ammo' });
       }
     }
+    building.bake();
     return spots;
   }
   return { build, spots };

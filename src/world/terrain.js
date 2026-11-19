@@ -143,7 +143,7 @@ function treeGeos() {
   const trunk = new THREE.CylinderGeometry(0.28, 0.45, 4.2, 7).translate(0, 2.1, 0);
   colorize(trunk, C('#9a6238'), C('#c98a4e'));
   const round = mergeGeometries([
-    blob(2.3, 0, 5.2, 0), blob(1.8, 1.4, 4.6, 0.6), blob(1.7, -1.2, 4.7, -0.7), blob(1.6, 0.2, 6.4, -0.3), blob(1.5, -0.4, 4.5, 1.4),
+    blob(2.3, 0, 5.2, 0, 0.85, 1), blob(1.8, 1.4, 4.6, 0.6, 0.85, 1), blob(1.7, -1.2, 4.7, -0.7, 0.85, 1), blob(1.6, 0.2, 6.4, -0.3, 0.85, 1), blob(1.5, -0.4, 4.5, 1.4, 0.85, 1),
   ]);
   colorize(round, C('#3fa040'), C('#b8ec62'));
   const pine = mergeGeometries([
@@ -178,7 +178,7 @@ function flowerGeo() {
   const r = rng(99);
   for (let i = 0; i < 7; i++) {
     const x = (r() - 0.5) * 1.6, z = (r() - 0.5) * 1.6, h = 0.25 + r() * 0.35;
-    parts.push(new THREE.CylinderGeometry(0.02, 0.02, h, 3).translate(x, h / 2, z));
+    parts.push(new THREE.CylinderGeometry(0.02, 0.02, h, 3, 1, true).translate(x, h / 2, z));
     parts.push(new THREE.IcosahedronGeometry(0.11, 0).scale(1, 0.6, 1).translate(x, h, z));
   }
   const g = mergeGeometries(parts.map((p) => (p.index ? p.toNonIndexed() : p)));

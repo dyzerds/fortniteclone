@@ -152,4 +152,4 @@ renderer.setAnimationLoop((now) => {
   composer.render();
 });
 window.__ready = true;
-window.__dbg = { match, building, look, rig, input, hud, ui };
+window.__dbg = { match, building, look, rig, input, hud, ui, renderer };

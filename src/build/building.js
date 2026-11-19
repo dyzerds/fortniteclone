@@ -48,8 +48,9 @@ function pieceGeometry(type, tiles) {
   });
   return mergeGeometries(parts);
 }
-const fullGeo = {};
-const geoFor = (type, tiles) => (tiles.every(Boolean) ? (fullGeo[type] ??= pieceGeometry(type, tiles)) : pieceGeometry(type, tiles));
+// one shared geometry per tile pattern; ponytail: never evicted (at most 512 wall patterns, a few KB each)
+const geoCache = {};
+const geoFor = (type, tiles) => (geoCache[type + tiles.join('')] ??= pieceGeometry(type, tiles));
 
 function placeTransform(p, obj) {
   if (p.type === 'wall') {
@@ -126,8 +127,8 @@ export function createBuilding(scene, fx) {
     building.delete(p);
     for (const c of p.colliders) removeCollider(c);
     p.colliders = [];
+    unbatch(p);
     scene.remove(p.mesh);
-    if (!p.tiles.every(Boolean)) p.mesh.geometry.dispose();
     p.dead = true;
     fx.shatter(p.box, DEBRIS[p.mat]);
     if (cascade) grid.unsupported(neighbors).forEach((q, i) => collapseQueue.push({ p: q, t: 0.06 + i * 0.035 }));
@@ -142,10 +143,9 @@ export function createBuilding(scene, fx) {
   }
 
   function setTiles(p, tiles) {
+    unbatch(p);
     p.tiles = tiles;
-    const old = p.mesh.geometry;
     p.mesh.geometry = geoFor(p.type, tiles);
-    if (old !== fullGeo[p.type]) old.dispose();
     buildColliders(p);
   }
 
@@ -197,6 +197,7 @@ export function createBuilding(scene, fx) {
   function showEdit(p, sel) {
     editGroup.clear();
     if (!p) return;
+    unbatch(p);
     placeTransform(p, editGroup);
     TILE_BOXES[p.type].forEach(([x, y, z, sx, sy, sz, rx], i) => {
       const g = new THREE.BoxGeometry(sx * 0.96, sy * 0.96 + (p.type === 'wall' ? 0 : 0.04), sz + 0.08);
@@ -248,11 +249,42 @@ export function createBuilding(scene, fx) {
     for (const p of [...grid.pieces.values()]) {
       for (const c of p.colliders) removeCollider(c);
       scene.remove(p.mesh);
-      if (!p.tiles.every(Boolean)) p.mesh.geometry.dispose();
       p.dead = true;
     }
+    for (const b of batches) { scene.remove(b.im); b.im.dispose(); }
+    batches = [];
     grid.clear(); building.clear(); collapseQueue.length = 0;
     showGhost(null); hideEdit(null);
+  }
+
+  // ---- static batching: idle town pieces share one InstancedMesh per style + tile pattern (one draw call each).
+  // A piece leaves its batch for its own mesh when edited or destroyed. ponytail: pieces never rejoin; bake() runs once per match.
+  let batches = [];
+  function bake() {
+    const groups = new Map();
+    for (const p of grid.pieces.values()) {
+      if (!p.built || p.batch) continue;
+      const key = `${p.style}|${p.type}|${p.tiles.join('')}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(p);
+    }
+    for (const list of groups.values()) {
+      const im = new THREE.InstancedMesh(geoFor(list[0].type, list[0].tiles), matFor(list[0].style), list.length);
+      im.castShadow = true; im.receiveShadow = true;
+      const b = { im, owners: list };
+      list.forEach((p, i) => { im.setMatrixAt(i, p.mesh.matrixWorld); p.batch = b; p.bi = i; scene.remove(p.mesh); });
+      im.computeBoundingSphere();
+      scene.add(im); batches.push(b);
+    }
+  }
+  function unbatch(p) {
+    const b = p.batch;
+    if (!b) return;
+    const last = b.owners.pop();
+    if (last !== p) { b.owners[p.bi] = last; last.bi = p.bi; b.im.setMatrixAt(p.bi, last.mesh.matrixWorld); }
+    b.im.count = b.owners.length; b.im.instanceMatrix.needsUpdate = true;
+    p.batch = null;
+    scene.add(p.mesh);
   }
 
   // push characters standing inside a fresh piece up onto it
@@ -267,5 +299,5 @@ export function createBuilding(scene, fx) {
     }
   }
 
-  return { grid, place, destroy, damage, setTiles, target, showGhost, showEdit, hideEdit, tileUnderRay, update, reset, unstick };
+  return { grid, place, destroy, damage, setTiles, bake, target, showGhost, showEdit, hideEdit, tileUnderRay, update, reset, unstick };
 }
