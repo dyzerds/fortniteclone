@@ -8,6 +8,7 @@ import { emptyInput } from './player/controller.js';
 import { emptyIntent } from './player/hands.js';
 import { outside } from './storm.js';
 import { settings } from './settings-store.js';
+import { healResult } from './combat/rules.js';
 
 const DIFF = {
   Easy: { err: 2.2, react: 1.7, build: 0.2, track: 0.6 },
@@ -31,7 +32,7 @@ export class BotBrain {
     this.thinkT = Math.random() * 0.3; this.reactT = 0;
     this.strafe = 1; this.strafeT = 0; this.stuckT = 0; this.avoidT = 0; this.avoidYaw = 0;
     this.buildCool = 0; this.jitter = new THREE.Vector3();
-    this.dropT = 0; this.landing = null; this.task = ''; this.ignore = new Set();
+    this.dropT = 0; this.landing = null; this.task = ''; this.ignore = new Set(); this.breachT = 0;
   }
 
   // ---- slow decisions ----
@@ -54,7 +55,8 @@ export class BotBrain {
     this.jitter.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(2 * BOT.aimError * this.d.err);
 
     it.slot = -1; it.reload = false; it.build = null;
-    const heal = inv.slots.findIndex((s) => s?.kind === 'heal' && ((s.id === 'bandage' && ch.health < 75) || (s.id === 'medkit' && ch.health < 60) || (s.id.startsWith('shield') && ch.shield < 60)));
+    // heal when hurt, only with an item that still does something (a shield cell stops at 50)
+    const heal = (ch.health < 75 || ch.shield < 60) ? inv.slots.findIndex((s) => s?.kind === 'heal' && healResult(s.id, ch.health, ch.shield)) : -1;
 
     const want = this.enemy ? this.bestWeapon(best) : -1;
     if (this.enemy && (this.los || best < 40) && (want >= 0 || best < 6)) {
@@ -74,7 +76,7 @@ export class BotBrain {
       // give up on loot we cannot reach (inside a closed house, up a cliff)
       const key = lootGoal.entry ?? lootGoal.box;
       if (this.goalKey !== key) { this.goalKey = key; this.goalSince = this.m.time(); }
-      else if (this.m.time() - this.goalSince > 12) this.ignore.add(key);
+      else if (this.m.time() - this.goalSince > 9) this.ignore.add(key);
       this.task = 'loot'; this.goal = lootGoal; return;
     }
     if (inv.mats.wood < 60 && !this.enemy) {
@@ -117,14 +119,20 @@ export class BotBrain {
       if (e.item.kind === 'heal' && ch.hands.inv.slots.every(Boolean)) continue;
       if (e.item.kind === 'weapon' && ch.hands.inv.slots.some((s) => s?.kind === 'weapon' && s.cls === e.item.cls && s.rarity >= e.item.rarity)) continue;
       const d = e.pos.distanceTo(ch.pos);
-      if (d < bd && Math.abs(e.pos.y - ch.pos.y) < 6) { bd = d; best = { x: e.pos.x, z: e.pos.z, entry: e }; }
+      if (d < bd && Math.abs(e.pos.y - ch.pos.y) < 2.5) { bd = d; best = { x: e.pos.x, z: e.pos.z, entry: e }; } // no stairs pathing, so same floor only
     }
     for (const c of loot.containers) {
       if (c.open || c.kind !== 'chest' || this.ignore.has(c)) continue;
       const d = c.pos.distanceTo(ch.pos);
-      if (d < bd && Math.abs(c.pos.y - ch.pos.y) < 6) { bd = d; best = { x: c.pos.x, z: c.pos.z, box: c }; }
+      if (d < bd && Math.abs(c.pos.y - ch.pos.y) < 2.5) { bd = d; best = { x: c.pos.x, z: c.pos.z, box: c }; }
     }
     return best;
+  }
+
+  // a build piece right ahead at knee height (low tiles stay when windows are cut)
+  wallAhead(fx, fz) {
+    const ch = this.ch;
+    return raycast({ x: ch.pos.x, y: ch.pos.y + 0.6, z: ch.pos.z }, { x: fx, y: 0, z: fz }, 2.2, ch.collider)?.tag?.kind === 'piece';
   }
 
   nearestTree(range) {
@@ -140,7 +148,7 @@ export class BotBrain {
   // ---- every fixed tick ----
   tick(dt) {
     const ch = this.ch, inp = ch.inp, it = this.it, h = ch.hands;
-    this.thinkT -= dt; this.reactT -= dt; this.buildCool -= dt; this.strafeT -= dt; this.avoidT -= dt;
+    this.thinkT -= dt; this.reactT -= dt; this.breachT -= dt; this.buildCool -= dt; this.strafeT -= dt; this.avoidT -= dt;
     if (this.thinkT <= 0) {
       const far = this.m.player.pos.distanceTo(ch.pos) > BOT.farDist;
       this.thinkT = 1 / (far ? BOT.farThinkHz : BOT.thinkHz);
@@ -181,8 +189,12 @@ export class BotBrain {
     } else if (this.goal) {
       const dx = this.goal.x - ch.pos.x, dz = this.goal.z - ch.pos.z, d = Math.hypot(dx, dz);
       yaw = yawTo(dx, dz);
-      const reach = this.goal.prop ? 2.2 : 1.6;
-      if (d > reach) { inp.mz = 1; inp.sprint = d > 8; }
+      const reach = this.goal.prop ? 2.2 : 2.4; // player interact reach is 2.6
+      if (d > reach) {
+        // loot behind a house wall (bots don't path to doors): pickaxe through it
+        if ((this.goal.entry || this.goal.box) && d < 8 && this.stuckT > 0.3 && this.wallAhead(dx / d, dz / d)) this.breachT = 1.2;
+        if (this.breachT > 0) { this.avoidT = 0; if (h.inv.sel !== 0) it.slot = 0; else it.fireHeld = true; } else { inp.mz = 1; inp.sprint = d > 8; }
+      }
       else if (this.goal.entry) { this.m.loot.take(this.goal.entry, h); this.goal = null; }
       else if (this.goal.box) { this.m.loot.open(this.goal.box, h); this.goal = null; }
       else if (this.goal.prop) {
@@ -201,7 +213,7 @@ export class BotBrain {
     const tr = BOT.aimTrack * this.d.track * 4 * dt;
     inp.yaw += Math.max(-tr, Math.min(tr, Math.atan2(Math.sin(yaw - inp.yaw), Math.cos(yaw - inp.yaw))));
     inp.pitch = pitch;
-    if (this.task !== 'fight') { h.eye.set(ch.pos.x, ch.pos.y + 1.5, ch.pos.z); if (!this.goal?.prop) h.dir.set(-Math.sin(inp.yaw), 0, -Math.cos(inp.yaw)); h.aimPoint.copy(h.eye).addScaledVector(h.dir, 30); }
+    if (this.task !== 'fight') { h.eye.set(ch.pos.x, ch.pos.y + (this.breachT > 0 ? 0.6 : 1.5), ch.pos.z); if (!this.goal?.prop) h.dir.set(-Math.sin(inp.yaw), 0, -Math.cos(inp.yaw)); h.aimPoint.copy(h.eye).addScaledVector(h.dir, 30); }
     h.tick(it, dt);
     inp.ads = false; inp.jumpHeld = inp.jump;
   }
