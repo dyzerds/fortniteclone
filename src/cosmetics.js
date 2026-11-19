@@ -78,4 +78,4 @@ export function saveLoadout(l) {
   try { localStorage.setItem(KEY, JSON.stringify(l)); } catch { /* ignore */ }
 }
 
-export const wrapFor = (loadout, cls) => loadout.wraps[cls] || loadout.wraps.all || 'none';
+export const wrapFor = (loadout, cls) => loadout.wraps?.[cls] || loadout.wraps?.all || 'none';

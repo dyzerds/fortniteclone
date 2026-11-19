@@ -10,12 +10,12 @@ export const WORLD = {
 
 // Named towns. Terrain flattens to `h` inside radius r; pois.js builds houses there.
 export const POIS = [
-  { name: 'Pebblewick',     x: -170, z: -150, r: 70, h: 9 },
-  { name: 'Mossbrook Mill', x: 190,  z: -200, r: 60, h: 13 },
-  { name: 'Rustbolt Yard',  x: 230,  z: 150,  r: 70, h: 7 },
-  { name: 'Lilac Lanes',    x: -60,  z: 60,   r: 80, h: 14 },
-  { name: 'Gullrock Harbor',x: -300, z: 170,  r: 60, h: 4 },
-  { name: 'Thistle Heights',x: 40,   z: -320, r: 55, h: 22 },
+  { name: 'Pebblewick',     x: -170, z: -150, r: 70, h: 7.5 },
+  { name: 'Mossbrook Mill', x: 190,  z: -200, r: 60, h: 11.25 },
+  { name: 'Rustbolt Yard',  x: 230,  z: 150,  r: 70, h: 7.5 },
+  { name: 'Lilac Lanes',    x: -60,  z: 60,   r: 80, h: 15 },
+  { name: 'Gullrock Harbor',x: -300, z: 170,  r: 60, h: 3.75 },
+  { name: 'Thistle Heights',x: 40,   z: -320, r: 55, h: 22.5 },
 ];
 
 export const GRID = {

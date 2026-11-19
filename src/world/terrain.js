@@ -77,7 +77,7 @@ export const isLand = (x, z) => getHeight(x, z) > 1.5;
 export const props = [];
 const _m = new THREE.Matrix4(), _zero = new THREE.Matrix4().makeScale(0, 0, 0);
 
-function addProp(kind, x, y, z, hp, inst, colliderDesc, r) {
+export function addProp(kind, x, y, z, hp, inst, colliderDesc, r) {
   const p = { kind, x, y, z, r, hp, maxHp: hp, inst, desc: colliderDesc, collider: null, alive: true, shake: 0 };
   p.collider = addStatic(colliderDesc, { kind: 'prop', ref: p });
   props.push(p);
@@ -186,10 +186,10 @@ function flowerGeo() {
 }
 
 // ---------- grass (chunks streamed around the camera) ----------
-const GRASS_CHUNK = 20, GRASS_RADIUS = 2, GRASS_PER_CHUNK = 1300;
+const GRASS_CHUNK = 20, GRASS_RADIUS = 2, GRASS_PER_CHUNK = 1800;
 function bladeGeo() {
   const g = new THREE.BufferGeometry();
-  const w = 0.07, h = 0.85;
+  const w = 0.05, h = 0.6;
   const pos = [-w, 0, 0, w, 0, 0, -w * 0.7, h * 0.45, 0.04, w * 0.7, h * 0.45, 0.04, 0, h, 0.14];
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('normal', new THREE.Float32BufferAttribute([0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0], 3));
@@ -316,8 +316,8 @@ export function createTerrain(scene) {
       if (h < 2.6 || getNormalY(x, z) < 0.86 || nearPoi(x, z, -12)) continue;
       const dense = noise(x * 0.04, z * 0.04);
       if (dense < -0.25) continue;
-      const sc = 0.45 + cr() * 0.6 + Math.max(0, dense) * 0.5;
-      m.setMatrixAt(n, _m.compose(v.set(x, h - 0.05, z), q.setFromEuler(e.set(0, cr() * 6.28, 0)), s.set(1.2 + sc, sc, 1.2 + sc)));
+      const sc = 0.35 + cr() * 0.4 + Math.max(0, dense) * 0.3;
+      m.setMatrixAt(n, _m.compose(v.set(x, h - 0.05, z), q.setFromEuler(e.set(0, cr() * 6.28, 0)), s.set(1 + sc * 0.5, sc, 1 + sc * 0.5)));
       const ii = (Math.round((z + HALF) / STEP) * N + Math.round((x + HALF) / STEP)) * 3;
       grassCol.setRGB(colors[ii], colors[ii + 1], colors[ii + 2]).multiplyScalar(0.95 + cr() * 0.25);
       m.setColorAt(n, grassCol);
