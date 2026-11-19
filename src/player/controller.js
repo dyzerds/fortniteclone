@@ -143,6 +143,7 @@ export class Character {
         if (this.crouching && !this.sliding) { this.setHeight(MOVE.height); this.crouching = false; }
         this.vel.y = Math.sqrt(2 * MOVE.gravity * MOVE.jumpHeight);
         this.sliding = false; this.grounded = false;
+        this.onSound?.('jump');
       }
     } else {
       this.vel.y -= MOVE.gravity * dt;
@@ -157,6 +158,7 @@ export class Character {
       const drop = this.airTop - this.pos.y;
       if (drop > MOVE.fallSafe && !this.swimming) this.onFallDamage?.((drop - MOVE.fallSafe) * MOVE.fallDmgPerM);
       this.landT = 0.18;
+      if (drop > 0.8) this.onSound?.('land');
     }
     if (this.grounded || this.swimming) this.airTop = this.pos.y;
     this.landT = Math.max(0, this.landT - dt);

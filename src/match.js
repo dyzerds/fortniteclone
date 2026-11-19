@@ -42,6 +42,7 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
   const hands = new Hands(player, ctx);
   player.hands = hands;
   player.onFallDamage = (d) => ctx.hurt(player, d, null, { cls: 'fall' });
+  player.onSound = (n) => ctx.sound(n, player);
   chars.push(player);
 
   const alive = () => chars.reduce((n, c) => n + (c.alive ? 1 : 0), 0);

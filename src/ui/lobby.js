@@ -57,7 +57,7 @@ function pedestal() {
   return g;
 }
 
-export function createUi({ renderer, scene, camera, sky, terrain, composer, loadout, onPlay, onResume, onLeave, onLoadout }) {
+export function createUi({ renderer, scene, camera, sky, terrain, composer, loadout, audio, onPlay, onResume, onLeave, onLoadout }) {
   const root = document.createElement('div');
   root.className = 'ui';
   root.innerHTML = `<nav class="topbar"><div class="brand">${BRAND}<span>STORM ROYALE</span></div>
@@ -130,8 +130,9 @@ export function createUi({ renderer, scene, camera, sky, terrain, composer, load
 
   // ---- input ----
   root.addEventListener('click', (e) => {
-    const b = e.target.closest('button');
-    if (!b) return;
+    const b = e.target.closest('button, .tile, .seg');
+    if (b) audio.play('click');
+    if (!b || b.tagName !== 'BUTTON') return;
     if (b.dataset.go) show(b.dataset.go);
     else if (b.classList.contains('play-btn')) onPlay();
     else if (b.classList.contains('mode-change')) $('.mode-pop').hidden = !$('.mode-pop').hidden;

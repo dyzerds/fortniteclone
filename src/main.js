@@ -10,6 +10,7 @@ import { createMatch } from './match.js';
 import { createHud } from './hud/hud.js';
 import { createUi, recordMatch } from './ui/lobby.js';
 import { loadLoadout } from './cosmetics.js';
+import { createAudio } from './audio.js';
 import { input } from './input.js';
 import { settings, onSettings } from './settings-store.js';
 
@@ -33,15 +34,17 @@ const building = createBuilding(scene, fx);
 const pois = createPois(scene);
 const rig = new CameraRig(camera);
 const loadout = loadLoadout();
+const audio = createAudio();
 
 const hud = createHud(document.body, { onExit: () => toLobby() });
 const match = createMatch({
   scene, rig, fx, building, pois, loadout,
   events: {
-    damage: (pt, n, info) => hud.damage(pt, n, info, camera),
-    hurt: (att) => hud.hurt(att, match.player, match.player.yaw),
+    damage: (pt, n, info) => { hud.damage(pt, n, info, camera); if (!info.struct) audio.play(info.head ? 'headshot' : 'hit'); },
+    hurt: (att) => { hud.hurt(att, match.player, match.player.yaw); audio.play('hurt'); },
     eliminated: (t, by, cls, left) => hud.eliminated(t, by, cls, left, match.player),
-    over: (r) => { recordMatch(r); hud.over(r); },
+    over: (r) => { recordMatch(r); hud.over(r); audio.play(r.victory ? 'victory' : 'eliminated'); },
+    sound: (name, ch) => audio.play(name, ch === match.player ? null : ch.pos),
     jumped: () => hud.jumped(),
     map: () => hud.toggleMap(),
   },
@@ -49,7 +52,7 @@ const match = createMatch({
 const look = { yaw: 0, pitch: -0.15, emote: null };
 
 const ui = createUi({
-  renderer, scene, camera, sky, terrain, composer, loadout,
+  renderer, scene, camera, sky, terrain, composer, loadout, audio,
   onPlay: () => play(),
   onResume: () => input.lock(canvas),
   onLeave: () => toLobby(),
@@ -142,6 +145,7 @@ renderer.setAnimationLoop((now) => {
     while (acc >= STEP) { match.tick(STEP); input.endTick(); acc -= STEP; }
     match.frame(dt, look);
     hud.update(dt, match, camera, rig);
+    audio.listen(camera.position, look.yaw);
   }
   sky.update(dt, match.player.pos, camera.position);
   terrain.update(dt, t, camera.position);
