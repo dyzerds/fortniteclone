@@ -33,12 +33,12 @@ const pois = createPois(scene);
 const rig = new CameraRig(camera);
 
 const match = createMatch({ scene, rig, fx, building, pois, loadout: loadLoadout() });
-match.reset();
 
-// dev harness: ?p=x,z&yaw=&pitch=&emote=&kit=1
+// dev harness: ?p=x,z (start on the ground) &bots=n &yaw= &pitch= &emote= &kit=1
 const qs = new URLSearchParams(location.search);
-const [px, pz] = (qs.get('p') || '-60,140').split(',').map(Number);
-match.spawnPlayer(px, pz);
+const dev = qs.has('p');
+match.start({ dev, bots: Number(qs.get('bots') ?? settings.bots) });
+if (dev) { const [px, pz] = qs.get('p').split(',').map(Number); match.spawnPlayer(px, pz); }
 const look = { yaw: Number(qs.get('yaw') || 0), pitch: Number(qs.get('pitch') || -0.15), emote: qs.get('emote') };
 if (qs.get('kit')) {
   const inv = match.hands.inv;

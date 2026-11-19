@@ -5,7 +5,7 @@ import { BUILD_COST, CONSUMABLES, HARVEST, MATERIALS, MOVE, WEAPONS } from '../c
 import { raycast } from '../physics.js';
 import { damageProp } from '../world/terrain.js';
 import { Inventory, healResult, weaponDamage } from '../combat/rules.js';
-import { weaponModel, pickaxeModel, consumableModel } from '../models.js';
+import { weaponModel, pickaxeModel, consumableModel, gliderModel } from '../models.js';
 import { wrapFor } from '../cosmetics.js';
 import { settings } from '../settings-store.js';
 
@@ -317,6 +317,9 @@ export class Hands {
       this.held.lookAt(_v.copy(this.held.position).multiplyScalar(2).sub(this.aimPoint));
       this.held.translateY(0.1); this.held.translateZ(-0.12);
     }
+    const gliding = ch.mode === 'glide' && ch.alive;
+    if (gliding && !this.glider) { this.glider = gliderModel(ch.cosmetics.glider ?? 'sail'); this.glider.position.y = 2.6; this.glider.rotation.y = Math.PI; a.root.add(this.glider); }
+    if (this.glider) this.glider.visible = gliding;
     if (!ch.isBot) {
       const wk = this.ctx.fx.weak, show = this.weak && key === 'pick' && (this.weak.ref.alive ?? !this.weak.ref.dead);
       wk.visible = !!show;

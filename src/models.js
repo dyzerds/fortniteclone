@@ -176,13 +176,33 @@ export function chestModel() {
   const gold = mat('#ffcf3a', { metalness: 0.7, roughness: 0.25, emissive: '#ffae00', emissiveIntensity: 0.25 });
   const woodC = mat('#8a4e2a', { roughness: 0.7 });
   part(g, box(1.0, 0.5, 0.6, 0.04), woodC, 0, 0.25, 0);
-  const lid = new THREE.Group(); lid.position.set(0, 0.5, -0.3); g.add(lid);
+  const lid = new THREE.Group(); lid.name = 'lid'; lid.position.set(0, 0.5, -0.3); g.add(lid);
   part(lid, new THREE.CylinderGeometry(0.3, 0.3, 1.0, 16, 1, false, 0, Math.PI), woodC, 0, 0, 0.3, 0, 0, Math.PI / 2);
   for (const x of [-0.45, 0, 0.45]) {
     part(g, box(0.06, 0.52, 0.62), gold, x, 0.25, 0);
     part(lid, new THREE.TorusGeometry(0.3, 0.03, 6, 16, Math.PI), gold, x, 0, 0.3, 0, Math.PI / 2, 0);
   }
   part(g, box(0.16, 0.18, 0.06), gold, 0, 0.42, 0.31);
-  g.userData.lid = lid;
+  return g;
+}
+
+// Sky barge: striped balloon over a wooden deck with side propellers (original design).
+export function bargeModel() {
+  const g = new THREE.Group();
+  const env = new THREE.Group(); env.position.y = 9; g.add(env);
+  const cols = ['#ff5a5a', '#fff3e0'];
+  for (let i = 0; i < 8; i++) {
+    const seg = part(env, new THREE.SphereGeometry(5, 24, 16, (i / 8) * Math.PI * 2, Math.PI / 4), mat(cols[i % 2], { roughness: 0.6 }), 0, 0, 0, Math.PI / 2, 0, 0);
+    seg.scale.set(1, 2.4, 1);
+  }
+  for (const [ry, rz] of [[0, 0], [0, Math.PI / 2]]) part(env, box(0.2, 4, 3, 0.05), mat('#ffb21e'), 0, 0, 11.5, 0, ry, rz);
+  part(g, box(4.2, 1.6, 12, 0.5), mat('#a8683a', { roughness: 0.8 }), 0, 0, 0);
+  part(g, box(4.4, 0.3, 12.2, 0.1), mat('#ffd21f'), 0, 0.85, 0);
+  for (const x of [-1.6, 1.6]) for (const z of [-4, 4]) part(g, cyl(0.08, 0.08, 6.5, 6), dark, x, 4, z);
+  for (const s of [1, -1]) {
+    part(g, cyl(0.35, 0.35, 1.6), grey, 3.2 * s, 0.6, 3.5, Math.PI / 2);
+    const prop = new THREE.Group(); prop.name = `prop${s}`; prop.position.set(3.2 * s, 0.6, 4.4); g.add(prop);
+    for (let b = 0; b < 3; b++) part(prop, box(0.25, 2.2, 0.06), mat('#2fb8ff'), 0, 0, 0, 0, 0, (b / 3) * Math.PI * 2).geometry.translate(0, 1.1, 0);
+  }
   return g;
 }
