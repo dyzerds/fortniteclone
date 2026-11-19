@@ -284,7 +284,7 @@ export function createTerrain(scene) {
   for (let tries = 0; tries < 40000 && flowers.count < 3500; tries++) {
     const x = (r() - 0.5) * SIZE * 0.85, z = (r() - 0.5) * SIZE * 0.85;
     const h = getHeight(x, z);
-    if (h < 2.5 || getNormalY(x, z) < 0.88) continue;
+    if (h < 2.5 || getNormalY(x, z) < 0.88 || nearPoi(x, z, 0)) continue;
     const patch = noise(x * 0.025 + 70, z * 0.025);
     if (patch < 0.35 || r() > 0.6) continue;
     const c = flowerCols[(Math.floor((noise2(x * 0.01, z * 0.01) + 1) * 3) + (r() < 0.2 ? 1 : 0)) % flowerCols.length];
@@ -313,7 +313,7 @@ export function createTerrain(scene) {
     for (let k = 0; k < GRASS_PER_CHUNK * 2 && n < GRASS_PER_CHUNK; k++) {
       const x = (cx + cr()) * GRASS_CHUNK, z = (cz + cr()) * GRASS_CHUNK;
       const h = getHeight(x, z);
-      if (h < 2.6 || getNormalY(x, z) < 0.86 || nearPoi(x, z, -12)) continue;
+      if (h < 2.6 || getNormalY(x, z) < 0.86 || nearPoi(x, z, 0)) continue; // towns: no blades through house floors
       const dense = noise(x * 0.04, z * 0.04);
       if (dense < -0.25) continue;
       const sc = 0.35 + cr() * 0.4 + Math.max(0, dense) * 0.3;

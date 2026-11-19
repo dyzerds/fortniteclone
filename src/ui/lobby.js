@@ -32,12 +32,18 @@ function findStage() {
   for (let a = -0.8; a <= 0.8; a += 0.05) {
     const dir = u.clone().applyAxisAngle(Y, a);
     for (let k = 120; k < WORLD.islandRadius; k += 3) {
-      const at = dir.clone().multiplyScalar(k), cam = at.clone().addScaledVector(u, 4.8), back = at.clone().addScaledVector(u, -14);
+      const at = dir.clone().multiplyScalar(k), cam = at.clone().addScaledVector(u, 4.8);
       const ha = H(at);
       if (ha < 2 || H(cam) < 1.5) continue;
       if (POIS.some((p) => Math.hypot(at.x - p.x, at.z - p.z) < p.r + 15)) continue;
       if (props.some((p) => Math.hypot(p.x - at.x, p.z - at.z) < 7 || Math.hypot(p.x - cam.x, p.z - cam.z) < 4)) continue;
-      const score = Math.abs(H(cam) - ha) * 2 + Math.max(0, H(back) - ha - 1) - ha * 0.03;
+      const uneven = Math.max(...[0, 1, 2, 3, 4, 5].map((i) => Math.abs(getHeight(at.x + Math.cos(i) * 1.2, at.z + Math.sin(i) * 1.2) - ha)));
+      let wall = 0; // terrain rising across the view behind the avatar
+      for (let f = -0.5; f <= 0.5; f += 0.25) for (const d of [8, 14, 22, 32]) {
+        const ang = Math.atan2(-u.x, -u.z) + f;
+        wall = Math.max(wall, getHeight(at.x + Math.sin(ang) * d, at.z + Math.cos(ang) * d) - ha - d * 0.2);
+      }
+      const score = Math.abs(H(cam) - ha) * 2 + wall + uneven * 4 - ha * 0.03;
       if (!best || score < best.score) best = { score, at, cam };
     }
   }
@@ -48,8 +54,8 @@ function findStage() {
 
 function pedestal() {
   const g = new THREE.Group();
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.05, 0.22, 40), new THREE.MeshStandardMaterial({ color: '#dfe7f2', roughness: 0.35, metalness: 0.2 }));
-  base.position.y = 0.11; base.receiveShadow = true; g.add(base);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.05, 1.2, 40), new THREE.MeshStandardMaterial({ color: '#dfe7f2', roughness: 0.35, metalness: 0.2 }));
+  base.position.y = -0.38; base.receiveShadow = true; g.add(base); // reaches 1 m into the ground so slopes show no gap
   const top = new THREE.Mesh(new THREE.CircleGeometry(0.85, 40), new THREE.MeshBasicMaterial({ color: '#9ff3ff' }));
   top.rotation.x = -Math.PI / 2; top.position.y = 0.225; g.add(top);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.98, 0.035, 8, 48), new THREE.MeshBasicMaterial({ color: '#4fd8ff' }));
