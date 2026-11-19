@@ -69,11 +69,19 @@ const STYLES = {
     for (let i = 0; i < 12; i++) g.fillRect(i * s / 12, 0, s / 24, s);
   },
 };
+// cottage siding: clapboards shaded top to bottom, white corner trim, darker skirting band
 function plaster(g, s, r, a, b) {
-  g.fillStyle = a; g.fillRect(0, 0, s, s);
-  for (let i = 0; i < 300; i++) { g.fillStyle = `rgba(255,255,255,${r() * 0.12})`; g.fillRect(r() * s, r() * s, 6, 6); }
+  const grd = g.createLinearGradient(0, 0, 0, s); grd.addColorStop(0, a); grd.addColorStop(1, b);
+  g.fillStyle = grd; g.fillRect(0, 0, s, s);
+  const rows = 11, h = (s - 26) / rows;
+  for (let y = 0; y < rows; y++) {
+    g.fillStyle = 'rgba(0,0,0,0.13)'; g.fillRect(0, y * h + h - 3, s, 3);
+    g.fillStyle = 'rgba(255,255,255,0.22)'; g.fillRect(0, y * h, s, 2);
+  }
+  for (let i = 0; i < 160; i++) { g.fillStyle = `rgba(255,255,255,${r() * 0.1})`; g.fillRect(r() * s, r() * s, 4, 2); }
   g.fillStyle = b; g.fillRect(0, s - 26, s, 26);
-  g.fillStyle = 'rgba(255,255,255,0.6)'; g.fillRect(0, 0, s, 8);
+  g.fillStyle = 'rgba(0,0,0,0.18)'; g.fillRect(0, s - 26, s, 3);
+  g.fillStyle = '#fbf6ee'; g.fillRect(0, 0, s, 9); g.fillRect(0, 0, 10, s); g.fillRect(s - 10, 0, 10, s);
 }
 function shingles(g, s, a, b) {
   g.fillStyle = b; g.fillRect(0, 0, s, s);

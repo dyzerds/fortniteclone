@@ -50,7 +50,7 @@ function computeColor(x, z, h, ny, out) {
     if (rock > 0) out.lerp(PAL.rockA, rock).lerp(PAL.rockB, rock * smoothstep(0, 0.8, n2) * 0.6);
     for (const p of POIS) {
       const dp = Math.hypot(x - p.x, z - p.z);
-      if (dp < p.r) out.lerp(n2 > 0.2 ? PAL.plaza : PAL.dirt, smoothstep(p.r, p.r * 0.6, dp) * 0.55);
+      if (dp < p.r) out.lerp(n2 > 0.2 ? PAL.plaza : PAL.dirt, smoothstep(p.r, p.r * 0.6, dp) * 0.35);
     }
   }
   return out;
