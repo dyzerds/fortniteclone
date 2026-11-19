@@ -48,15 +48,16 @@ export function createStormWall(scene) {
       uniform float uTime; varying vec2 vUv; varying vec3 vW;
       void main() {
         float a = atan(vW.z, vW.x);
-        float s = sin(a * 60.0 + vW.y * 0.08 - uTime * 1.5) * 0.5 + 0.5;
-        float s2 = sin(a * 23.0 - vW.y * 0.05 + uTime * 0.7) * 0.5 + 0.5;
+        float s = sin(a * 40.0 + vW.y * 0.03 - uTime * 1.2) * 0.5 + 0.5;
+        float s2 = sin(a * 9.0 - vW.y * 0.02 + uTime * 0.5) * 0.5 + 0.5;
         vec3 col = mix(vec3(0.42, 0.12, 0.85), vec3(0.85, 0.35, 1.0), s * s2);
         float fade = smoothstep(0.0, 0.05, vUv.y) * (1.0 - smoothstep(0.6, 1.0, vUv.y));
-        gl_FragColor = vec4(col, (0.42 + 0.25 * s) * fade);
+        float near = 1.0 - 0.7 * smoothstep(80.0, 450.0, distance(cameraPosition.xz, vW.xz));
+        gl_FragColor = vec4(col, (0.38 + 0.22 * s) * fade * near);
       }`,
   });
-  const wall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 700, 128, 1, true), mat);
-  wall.position.y = 300; wall.renderOrder = 2; wall.frustumCulled = false;
+  const wall = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 500, 128, 1, true), mat);
+  wall.position.y = 200; wall.renderOrder = 2; wall.frustumCulled = false;
   scene.add(wall);
   return {
     wall,

@@ -7,6 +7,7 @@ import { createBuilding } from './build/building.js';
 import { createFx } from './fx.js';
 import { CameraRig } from './player/controller.js';
 import { createMatch } from './match.js';
+import { createHud } from './hud/hud.js';
 import { loadLoadout } from './cosmetics.js';
 import { input } from './input.js';
 import { settings } from './settings-store.js';
@@ -32,7 +33,18 @@ const building = createBuilding(scene, fx);
 const pois = createPois(scene);
 const rig = new CameraRig(camera);
 
-const match = createMatch({ scene, rig, fx, building, pois, loadout: loadLoadout() });
+const hud = createHud(document.body, { onExit: () => { hud.reset(); match.start(); } });
+const match = createMatch({
+  scene, rig, fx, building, pois, loadout: loadLoadout(),
+  events: {
+    damage: (pt, n, info) => hud.damage(pt, n, info, camera),
+    hurt: (att) => hud.hurt(att, match.player, match.player.yaw),
+    eliminated: (t, by, cls, left) => hud.eliminated(t, by, cls, left, match.player),
+    over: (r) => hud.over(r),
+    jumped: () => hud.jumped(),
+    map: () => hud.toggleMap(),
+  },
+});
 
 // dev harness: ?p=x,z (start on the ground) &bots=n &yaw= &pitch= &emote= &kit=1
 const qs = new URLSearchParams(location.search);
@@ -71,9 +83,10 @@ renderer.setAnimationLoop((now) => {
   acc += dt;
   while (acc >= STEP) { match.tick(STEP); input.endTick(); acc -= STEP; }
   match.frame(dt, look);
+  hud.update(dt, match, camera, rig);
   sky.update(dt, match.player.pos, camera.position);
   terrain.update(dt, t, camera.position);
   composer.render();
 });
 window.__ready = true;
-window.__dbg = { match, building, look, rig, input };
+window.__dbg = { match, building, look, rig, input, hud };

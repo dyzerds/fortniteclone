@@ -101,6 +101,7 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
     it.slot = input.pressed('pickaxe') ? 0 : [1, 2, 3, 4, 5].find((i) => input.pressed(`slot${i}`)) ?? -1;
     it.scroll = input.takeWheel();
     if (input.pressed('interact') && player.alive) loot.interact(hands);
+    if (input.pressed('map')) events.map?.();
   }
 
   // ---- start ----
