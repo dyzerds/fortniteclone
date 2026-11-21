@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { initPhysics } from './physics.js';
-import { createTerrain } from './world/terrain.js';
+import { createTerrain, props } from './world/terrain.js';
 import { createSky, createComposer } from './world/sky.js';
 import { createPois } from './world/pois.js';
 import { createBuilding } from './build/building.js';
@@ -30,7 +30,7 @@ const sky = createSky(scene);
 const terrain = createTerrain(scene);
 const { composer, bloom } = createComposer(renderer, scene, camera);
 const fx = createFx(scene);
-const building = createBuilding(scene, fx);
+const building = createBuilding(scene, fx, terrain);
 const pois = createPois(scene);
 const rig = new CameraRig(camera);
 const loadout = loadLoadout();
@@ -179,4 +179,4 @@ renderer.setAnimationLoop((now) => {
   composer.render();
 });
 window.__ready = true;
-window.__dbg = { match, building, look, rig, input, hud, ui, renderer, scene };
+window.__dbg = { match, building, look, rig, input, hud, ui, renderer, scene, props };

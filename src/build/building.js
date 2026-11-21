@@ -64,7 +64,7 @@ function placeTransform(p, obj) {
   obj.updateMatrixWorld(true);
 }
 
-export function createBuilding(scene, fx) {
+export function createBuilding(scene, fx, terrain) {
   const grid = new BuildGrid(getHeight);
   const mats = {}, ghostMats = {};
   const matFor = (style) => (mats[style] ??= new THREE.MeshStandardMaterial({ map: styleTexture(style), roughness: 0.85 }));
@@ -116,6 +116,7 @@ export function createBuilding(scene, fx) {
     p.mesh.matrixAutoUpdate = false;
     scene.add(p.mesh);
     buildColliders(p);
+    terrain?.grassBlock(p.box, true);
     if (!instant) { building.add(p); p.mesh.scale.setScalar(0.7); p.mesh.matrixAutoUpdate = true; }
     return p;
   }
@@ -127,6 +128,7 @@ export function createBuilding(scene, fx) {
     building.delete(p);
     for (const c of p.colliders) removeCollider(c);
     p.colliders = [];
+    terrain?.grassBlock(p.box, false);
     unbatch(p);
     scene.remove(p.mesh);
     p.dead = true;
@@ -253,6 +255,7 @@ export function createBuilding(scene, fx) {
     }
     for (const b of batches) { scene.remove(b.im); b.im.dispose(); }
     batches = [];
+    terrain?.grassClear();
     grid.clear(); building.clear(); collapseQueue.length = 0;
     showGhost(null); hideEdit(null);
   }

@@ -97,7 +97,7 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
     inp.jump = input.pressed('jump'); inp.jumpHeld = input.down('jump');
     if (settings.toggleSprint === 'On') { if (input.pressed('sprint')) sprintToggle = !sprintToggle; inp.sprint = sprintToggle; }
     else inp.sprint = input.down('sprint');
-    inp.crouchPressed = input.pressed('crouch');
+    inp.crouchPressed = input.pressed('crouch'); inp.sprintPressed = input.pressed('sprint');
     if (settings.toggleCrouch === 'On') { if (inp.crouchPressed) inp.crouch = !inp.crouch; }
     else inp.crouch = input.down('crouch');
     if (inp.jump) inp.crouch = false;

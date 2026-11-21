@@ -214,7 +214,7 @@ export function createHud(root, { onExit, onSound } = {}) {
           const fill = tbar.querySelector('i');
           setStyle(fill, 'width', `${(f * 100).toFixed(0)}%`);
           toggle(fill, 'y', f <= 0.5 && f > 0.25); toggle(fill, 'r', f <= 0.25);
-          setText(tbar.querySelector('b'), `${Math.ceil(r.hp)} / ${max}`);
+          setText(tbar.querySelector('b'), `${Math.ceil(r.hp)} / ${Math.round(max)}`);
         }
       }
     }

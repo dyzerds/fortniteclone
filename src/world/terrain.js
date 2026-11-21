@@ -306,6 +306,8 @@ export function createTerrain(scene) {
   };
   const blade = bladeGeo();
   const chunks = new Map();
+  const blocks = new Set(); // build piece boxes that hide blades under them
+  const blocked = (x, z, h) => { for (const b of blocks) if (x > b.min[0] && x < b.max[0] && z > b.min[2] && z < b.max[2] && b.min[1] < h + 0.7 && b.max[1] > h - 0.3) return true; return false; };
   const grassCol = new THREE.Color();
   function buildChunk(cx, cz) {
     const m = new THREE.InstancedMesh(blade, grassMat, GRASS_PER_CHUNK);
@@ -314,7 +316,7 @@ export function createTerrain(scene) {
     for (let k = 0; k < GRASS_PER_CHUNK * 2 && n < GRASS_PER_CHUNK; k++) {
       const x = (cx + cr()) * GRASS_CHUNK, z = (cz + cr()) * GRASS_CHUNK;
       const h = getHeight(x, z);
-      if (h < 2.6 || getNormalY(x, z) < 0.86 || nearPoi(x, z, 0)) continue; // towns: no blades through house floors
+      if (h < 2.6 || getNormalY(x, z) < 0.86 || nearPoi(x, z, 0) || blocked(x, z, h)) continue; // towns: no blades through house floors
       const dense = noise(x * 0.04, z * 0.04);
       if (dense < -0.25) continue;
       const sc = 0.35 + cr() * 0.4 + Math.max(0, dense) * 0.3;
@@ -345,8 +347,22 @@ export function createTerrain(scene) {
     for (const [key, c] of chunks) if (!want.has(key)) { scene.remove(c); c.dispose(); chunks.delete(key); }
   }
 
+  function rebuildUnder(b) {
+    for (const [key, c] of chunks) {
+      const [cx, cz] = key.split(',').map(Number);
+      if (b.max[0] < cx * GRASS_CHUNK || b.min[0] > (cx + 1) * GRASS_CHUNK || b.max[2] < cz * GRASS_CHUNK || b.min[2] > (cz + 1) * GRASS_CHUNK) continue;
+      scene.remove(c); c.dispose();
+      const n = buildChunk(cx, cz); chunks.set(key, n); scene.add(n);
+    }
+  }
+
   return {
     ground, water,
+    grassBlock(box, on) {
+      const cx = (box.min[0] + box.max[0]) / 2, cz = (box.min[2] + box.max[2]) / 2;
+      if (on && (box.min[1] > getHeight(cx, cz) + 1.5 || nearPoi(cx, cz, 0))) return; // only pieces sitting on open ground
+      if (on) blocks.add(box); else if (!blocks.delete(box)) return; rebuildUnder(box); },
+    grassClear() { const old = [...blocks]; blocks.clear(); old.forEach(rebuildUnder); },
     update(dt, t, camPos) { shakeProps(dt); updateGrass(camPos, t); water.material.uniforms.uTime.value = t; },
     setGrass(level) {
       grassLevel = level;

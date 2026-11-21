@@ -133,7 +133,7 @@ export class Character {
       const sx = dx * nv + wx * dt * 3, sz = dz * nv + wz * dt * 3, sl = Math.hypot(sx, sz) || 1;
       this.vel.x = sx / sl * nv; this.vel.z = sz / sl * nv;
       // airT, not grounded: the capsule shrink and small bumps unground us for a tick or two
-      if (nv < MOVE.slideMin || !inp.crouch || this.airT > 0.15) {
+      if (nv < MOVE.slideMin || !inp.crouch || inp.sprintPressed || this.airT > 0.15) { // Shift cancels into a run
         this.sliding = false;
         if (inp.crouch) inp.crouch = false; // a slide that runs out stands you up (hold-crouch re-reads the key next tick)
       }
