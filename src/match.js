@@ -33,7 +33,11 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
       if (t === player) events.hurt?.(attacker, dmg);
       if (t.health <= 0) eliminate(t, attacker, info.cls);
     },
-    onHit(h, point, dmg, info) { if (h === hands) events.damage?.(point, Math.round(dmg), { struct: true, crit: info.crit }); },
+    onHit(h, point, dmg, info) {
+      if (h !== hands) return;
+      events.damage?.(point, Math.round(dmg), { struct: true, crit: info.crit, pick: info.pick, ref: info.ref });
+      if (info.pick) rig.shake = Math.max(rig.shake ?? 0, 0.25);
+    },
     onGain(h, mat, n) { if (h === hands) events.gain?.(mat, n); },
     sound: (name, ch) => events.sound?.(name, ch),
   };
@@ -43,6 +47,7 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
   player.hands = hands;
   player.onFallDamage = (d) => ctx.hurt(player, d, null, { cls: 'fall' });
   player.onSound = (n) => ctx.sound(n, player);
+  player.onLand = (drop) => landDust(player, drop);
   chars.push(player);
 
   const alive = () => chars.reduce((n, c) => n + (c.alive ? 1 : 0), 0);
@@ -57,6 +62,7 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
       b.hands = new Hands(b, ctx);
       b.brain = new BotBrain(b, brainCtx);
       b.onFallDamage = (d) => ctx.hurt(b, d, null, { cls: 'fall' });
+      b.onLand = (drop) => landDust(b, drop);
       chars.push(b);
     }
   }
@@ -213,7 +219,37 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
   }
 
   // ---- render frame ----
-  const camPos = new THREE.Vector3();
+  const camPos = new THREE.Vector3(), _w = new THREE.Vector3();
+  function waterFx(ch, dt) {
+    const y = WORLD.waterLevel + 0.03;
+    if (ch.swimming && !ch.wasSwim) {
+      fx.ripple(_w.set(ch.pos.x, y, ch.pos.z), 2.4, 0.9);
+      fx.burst(_w.setY(y + 0.2), '#e8f6ff', 8, 0.08, 4);
+    }
+    ch.wasSwim = ch.swimming;
+    if (!ch.swimming) return;
+    const moving = Math.hypot(ch.vel.x, ch.vel.z) > 0.6;
+    ch.rippleT = (ch.rippleT ?? 0) - dt;
+    if (ch.rippleT > 0) return;
+    ch.rippleT = moving ? 0.45 : 1.1;
+    fx.ripple(_w.set(ch.pos.x, y, ch.pos.z), moving ? 1.7 : 1.2, 1.3);
+    if (moving) fx.puff(ch.avatar.handWorld((ch.rippleN ^= 1) ? 'Left' : 'Right', _w).setY(y + 0.1), '#ffffff', 0.5, 0.3);
+  }
+  // puff on entry, then a pale trail behind the feet
+  function slideDust(ch, dt) {
+    const first = !(ch.dustT >= 0);
+    ch.dustT = first ? 0 : ch.dustT - dt;
+    if (ch.dustT > 0) return;
+    ch.dustT = 0.07;
+    fx.puff(_w.set(ch.pos.x, ch.pos.y + 0.15, ch.pos.z), '#e2d6bd', first ? 1.4 : 0.7, first ? 0.45 : 0.35);
+  }
+  function landDust(ch, drop) {
+    if (drop < 10 || ch.swimming) return;
+    for (let i = 0; i < 8; i++) {
+      const a = i / 8 * Math.PI * 2;
+      fx.puff(_w.set(ch.pos.x + Math.cos(a) * 0.7, ch.pos.y + 0.15, ch.pos.z + Math.sin(a) * 0.7), '#d8c9a8', 1.1, 0.5);
+    }
+  }
   function frame(dt, look) {
     if (state === 'idle') return;
     look.pitch -= hands.kick; hands.kick = 0;
@@ -227,6 +263,8 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
       ch.avatar.root.visible = vis;
       if (!vis) { if (ch.hands.held) ch.hands.held.visible = false; continue; }
       if (ch.hands.held) ch.hands.held.visible = true;
+      waterFx(ch, dt);
+      if (ch.sliding) slideDust(ch, dt); else ch.dustT = -1;
       // far characters animate at a lower rate
       ch.animAcc = (ch.animAcc ?? 0) + dt;
       if (d2 > 80 * 80 && ch.animAcc < 0.1) continue;
@@ -241,6 +279,9 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
       if (state !== 'bus' && bus.t < bus.dur) { bus.t += dt; bus.pos.lerpVectors(bus.from, bus.to, Math.min(1, bus.t / bus.dur)); }
       if (bus.t >= bus.dur && state !== 'bus') barge.visible = false;
     }
+    // contrails: hands and feet in free fall, wing tips once the glider is open
+    if (player.mode === 'skydive') ['LeftHand', 'RightHand', 'LeftFoot', 'RightFoot'].forEach((b, i) => fx.trail(i, player.avatar.bones[b].getWorldPosition(_w)));
+    else if (player.mode === 'glide' && player.deployT > 1.2 && hands.glider) hands.glider.userData.tips.forEach((t, i) => fx.trail(i, hands.glider.localToWorld(_w.copy(t))));
     const cur = hands.inv.current;
     rig.update(player, dt, { ads: hands.ads, scope: hands.ads && !!WEAPONS[cur?.cls]?.scope, extraDist: player.mode === 'bus' ? 14 : 0 });
     // looking through a scope is first person: hide your own body and gun

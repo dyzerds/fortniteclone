@@ -111,6 +111,22 @@
 .dn.sh { color: #7fe3ff; } .dn.hd { color: var(--gold); font-size: 32px; } .dn.st { font-size: 18px; color: #e8eef8; } .dn.cr { color: #7ff7ff; font-size: 22px; }
 @keyframes dn { 0% { opacity: 0; margin-top: 0; scale: 0.6; } 15% { opacity: 1; scale: 1.15; } 30% { scale: 1; } 100% { opacity: 0; margin-top: -60px; } }
 
+/* target health bar */
+.tbar { position: absolute; left: 0; top: 0; display: none; pointer-events: none; }
+.tbar.on { display: block; }
+.tb-track { width: 90px; height: 9px; border-radius: 5px; background: rgba(10, 16, 34, 0.75); border: 1px solid rgba(255, 255, 255, 0.7); overflow: hidden; box-sizing: content-box; }
+.tb-track i { display: block; height: 100%;  background: #5fd14a; }
+.tb-track i.y { background: #ffb21e; } .tb-track i.r { background: #ff4d4d; }
+.tbar b { position: absolute; left: 100%; bottom: 100%; margin-left: -30px; white-space: nowrap; font: 800 12px 'Nunito', sans-serif; color: #fff; text-shadow: 0 1px 3px #000, 0 0 2px #000; }
+
+/* material gain counter */
+.gain { position: absolute; left: calc(50% - 290px); top: calc(50% + 100px); display: flex; align-items: center; gap: 8px; pointer-events: none; opacity: 0; }
+.gain .gi { width: 34px; height: 34px; display: block; }
+.gain b { font: 30px 'Lilita One', sans-serif; color: #fff; -webkit-text-stroke: 1.5px #0e1a3a; text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6); display: inline-block; transform-origin: left center; }
+.gain .gfly { position: absolute; left: 42px; top: 0; opacity: 0; animation: gfly 0.35s ease-out forwards; }
+@keyframes gfly { from { opacity: 0.7; transform: translateY(0); } to { opacity: 0; transform: translateY(-40px); } }
+.inv-open .gain, .map-open .gain, .scoped .gain { display: none; }
+
 /* bars, prompts, messages */
 .usebar { position: absolute; left: 50%; top: 62%; transform: translateX(-50%); width: 240px; text-align: center; opacity: 0; font-size: 15px; }
 .usebar.on { opacity: 1; }
@@ -135,7 +151,8 @@
 /* full map */
 .bigmap { position: absolute; inset: 0; display: none; place-items: center; background: rgba(6, 14, 36, 0.72); }
 .map-open .bigmap { display: grid; pointer-events: auto; }
-.bigmap canvas { width: min(84vh, 760px); height: min(84vh, 760px); border-radius: 14px; box-shadow: 0 0 0 4px #fff, 0 12px 40px rgba(0, 0, 0, 0.5); cursor: crosshair; }
+.bigmap canvas { width: min(84vh, 760px); height: min(84vh, 760px); border-radius: 14px; box-shadow: 0 0 0 4px #fff, 0 12px 40px rgba(0, 0, 0, 0.5); cursor: grab; }
+.bigmap canvas.drag { cursor: grabbing; }
 .bigmap-hint { position: absolute; bottom: 3vh; font-size: 15px; color: #cfe0ff; }
 
 /* map marker over the world */
@@ -144,6 +161,8 @@
 .wmark svg { width: 22px; height: 30px; fill: var(--gold); stroke: var(--ink); stroke-width: 1.6; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4)); }
 .wmark svg circle { fill: var(--ink); stroke: none; }
 .wmark b { order: -1; font-size: 15px; color: var(--gold); }
+.wmark .wc { display: none; position: absolute; left: 50%; top: 50%; margin: -7px 0 0 -9px; border: 9px solid transparent; border-top: 0; border-bottom: 14px solid var(--gold); filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.5)); }
+.wmark.off .wc { display: block; }
 
 /* inventory */
 .inv { position: absolute; inset: 0; display: none; place-items: center; pointer-events: auto;

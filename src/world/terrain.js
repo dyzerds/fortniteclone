@@ -84,10 +84,11 @@ export function addProp(kind, x, y, z, hp, inst, colliderDesc, r) {
   return p;
 }
 
+const SHAKE_T = 0.65; // prop sway after a hit (s)
 export function damageProp(p, dmg) {
   if (!p.alive) return false;
   p.hp -= dmg;
-  p.shake = 0.35;
+  p.shake = SHAKE_T;
   if (p.hp > 0) return false;
   p.alive = false;
   for (const [mesh, idx] of p.inst) { mesh.setMatrixAt(idx, _zero); mesh.instanceMatrix.needsUpdate = true; }
@@ -108,7 +109,7 @@ function shakeProps(dt) {
   for (const p of props) {
     if (p.shake <= 0 || !p.alive) continue;
     p.shake = Math.max(0, p.shake - dt);
-    const k = Math.sin(p.shake * 60) * p.shake * 0.12;
+    const k = Math.sin((SHAKE_T - p.shake) * 31.4) * (p.shake / SHAKE_T) * 0.04; // ~5 Hz sway, dies out
     for (const [mesh, idx, mat] of p.inst) {
       _m.makeRotationZ(k).premultiply(mat);
       _m.copyPosition(mat);

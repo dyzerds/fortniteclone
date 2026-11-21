@@ -213,18 +213,36 @@ function makeClips() {
     LeftUpperArm: cyc(1.2, 4, (p) => [-12, 0, 38 + S(p, 5)]), RightUpperArm: cyc(1.2, 4, (p) => [-4, 0, -38 - S(p, 5)]),
     LeftLowerArm: [[0, -35, 0, 0]], RightLowerArm: [[0, -35, 0, 0]],
   }));
-  L.push(clip('slide', 1, {
-    Spine: [[0, -28, 0, 0]], Head: [[0, 25, 0, 0]],
-    LeftUpperLeg: [[0, -85, 0, 0]], LeftLowerLeg: [[0, 8, 0, 0]], RightUpperLeg: [[0, -35, 0, -10]], RightLowerLeg: [[0, 115, 0, 0]],
-    LeftUpperArm: [[0, 30, 0, 30]], RightUpperArm: [[0, 40, 0, -20]], LeftLowerArm: [[0, -30, 0, 0]], RightLowerArm: [[0, -30, 0, 0]],
-    pos: [[0, 0, -0.5, 0]],
+  // long fall: arms windmill overhead, legs pedal with bent knees
+  L.push(clip('flail', 0.8, {
+    Spine: [[0, -6, 0, 0]], Head: [[0, 10, 0, 0]],
+    LeftUpperArm: cyc(0.8, 8, (p) => [-20 + S(p, 35), 0, 140 + S(p, 20, 0.25)]), RightUpperArm: cyc(0.8, 8, (p) => [-20 - S(p, 35), 0, -140 + S(p, 20, 0.25)]),
+    LeftLowerArm: cyc(0.8, 8, (p) => [-30 + S(p, 20), 0, 0]), RightLowerArm: cyc(0.8, 8, (p) => [-30 - S(p, 20), 0, 0]),
+    LeftUpperLeg: cyc(0.8, 8, (p) => [-40 + S(p, 25), 0, 6]), RightUpperLeg: cyc(0.8, 8, (p) => [-40 - S(p, 25), 0, -6]),
+    LeftLowerLeg: cyc(0.8, 8, (p) => [70 - S(p, 25, 0.25), 0, 0]), RightLowerLeg: cyc(0.8, 8, (p) => [70 + S(p, 25, 0.25), 0, 0]),
   }));
+  // slide: right leg out front, left tucked under, body turned ~30° right of travel, leaning back a little
+  L.push(clip('slide', 1, {
+    Hips: [[0, 0, -30, 0]], Spine: [[0, -12, 20, 0]], Head: [[0, 12, 8, 0]], // legs turned, chest back on travel
+    RightUpperLeg: [[0, -85, 0, -6]], RightLowerLeg: [[0, 15, 0, 0]], LeftUpperLeg: [[0, -41, 0, 10]], LeftLowerLeg: [[0, 140, 0, 0]],
+    LeftUpperArm: [[0, 30, 0, 30]], RightUpperArm: [[0, 20, 0, -35]], LeftLowerArm: [[0, -30, 0, 0]], RightLowerArm: [[0, -20, 0, 0]],
+    pos: [[0, 0, -0.65, 0]],
+  }));
+  // belly-down free fall; the body tilt (belly → head-down dive) is applied procedurally (Avatar.tilt)
   L.push(clip('skydive', 1.2, {
-    Hips: cyc(1.2, 4, (p) => [78, 0, S(p, 3)]), Head: [[0, -55, 0, 0]],
+    Hips: cyc(1.2, 4, (p) => [0, 0, S(p, 3)]), Head: [[0, -55, 0, 0]],
     LeftUpperArm: cyc(1.2, 4, (p) => [-20, 0, 95 + S(p, 6)]), RightUpperArm: cyc(1.2, 4, (p) => [-20, 0, -95 - S(p, 6)]),
     LeftLowerArm: [[0, -35, 0, 0]], RightLowerArm: [[0, -35, 0, 0]],
     LeftUpperLeg: cyc(1.2, 4, (p) => [15, 0, 12 + S(p, 4)]), RightUpperLeg: cyc(1.2, 4, (p) => [15, 0, -12 - S(p, 4)]),
     LeftLowerLeg: [[0, 45, 0, 0]], RightLowerLeg: [[0, 45, 0, 0]],
+  }));
+  // free fall with no forward input: upright spread-eagle, arms up, knees bent
+  L.push(clip('skyfloat', 1.4, {
+    Head: [[0, 12, 0, 0]], Spine: [[0, -6, 0, 0]],
+    LeftUpperArm: cyc(1.4, 4, (p) => [-10, 0, 125 + S(p, 8)]), RightUpperArm: cyc(1.4, 4, (p) => [-10, 0, -125 - S(p, 8, 0.2)]),
+    LeftLowerArm: [[0, -25, 0, 0]], RightLowerArm: [[0, -25, 0, 0]],
+    LeftUpperLeg: cyc(1.4, 4, (p) => [-20 + S(p, 6), 0, 16]), RightUpperLeg: cyc(1.4, 4, (p) => [-14 - S(p, 6), 0, -16]),
+    LeftLowerLeg: [[0, 40, 0, 0]], RightLowerLeg: [[0, 34, 0, 0]],
   }));
   L.push(clip('glide', 1.6, {
     Spine: [[0, 6, 0, 0]],
@@ -232,11 +250,22 @@ function makeClips() {
     LeftUpperLeg: cyc(1.6, 4, (p) => [10 + S(p, 10), 0, 4]), RightUpperLeg: cyc(1.6, 4, (p) => [10 - S(p, 10), 0, -4]),
     LeftLowerLeg: [[0, 30, 0, 0]], RightLowerLeg: [[0, 30, 0, 0]],
   }));
-  L.push(clip('swim', 1.2, {
-    Hips: [[0, 55, 0, 0]], Head: [[0, -45, 0, 0]],
-    LeftUpperArm: cyc(1.2, 8, (p) => [-90 - S(p, 70), 0, 20]), RightUpperArm: cyc(1.2, 8, (p) => [-90 + S(p, 70), 0, -20]),
-    LeftUpperLeg: cyc(1.2, 8, (p) => [S(p, 20, 0.25), 0, 0]), RightUpperLeg: cyc(1.2, 8, (p) => [-S(p, 20, 0.25), 0, 0]),
-    pos: [[0, 0, 0, 0]], // head just above the surface at the float depth (feet = waterLevel - 1.25)
+  // front crawl: torso tipped forward, head at the waterline (feet float at waterLevel - swimDepth)
+  L.push(clip('swim', 0.9, {
+    Hips: [[0, 52, 0, 0]], Head: [[0, -42, 0, 0]],
+    LeftUpperArm: cyc(0.9, 8, (p) => [-90 - S(p, 75), 0, 20]), RightUpperArm: cyc(0.9, 8, (p) => [-90 + S(p, 75), 0, -20]),
+    LeftLowerArm: cyc(0.9, 8, (p) => [-15 - Math.max(0, C(p, 35)), 0, 0]), RightLowerArm: cyc(0.9, 8, (p) => [-15 - Math.max(0, -C(p, 35)), 0, 0]),
+    LeftUpperLeg: cyc(0.9, 8, (p) => [S(p * 2, 18, 0.25), 0, 0]), RightUpperLeg: cyc(0.9, 8, (p) => [-S(p * 2, 18, 0.25), 0, 0]),
+    LeftLowerLeg: [[0, 15, 0, 0]], RightLowerLeg: [[0, 15, 0, 0]],
+  }));
+  // treading water: upright, head and shoulders out, arms sculling, slow kick
+  L.push(clip('tread', 1.6, {
+    Spine: [[0, 6, 0, 0]],
+    LeftUpperArm: cyc(1.6, 8, (p) => [-35 + S(p, 10), S(p, 25), 38]), RightUpperArm: cyc(1.6, 8, (p) => [-35 + S(p, 10), -S(p, 25), -38]),
+    LeftLowerArm: cyc(1.6, 8, (p) => [-45, S(p, 20, 0.25), 0]), RightLowerArm: cyc(1.6, 8, (p) => [-45, -S(p, 20, 0.25), 0]),
+    LeftUpperLeg: cyc(1.6, 8, (p) => [-25 + S(p, 20), 0, 6]), RightUpperLeg: cyc(1.6, 8, (p) => [-25 - S(p, 20), 0, -6]),
+    LeftLowerLeg: cyc(1.6, 8, (p) => [50 - S(p, 25), 0, 0]), RightLowerLeg: cyc(1.6, 8, (p) => [50 + S(p, 25), 0, 0]),
+    pos: cyc(1.6, 4, (p) => [0, S(p, 0.03), 0]),
   }));
   L.push(clip('dead', 1, {
     Hips: [[0, -88, 0, 0]], pos: [[0, 0, -0.8, -0.2]],
@@ -298,11 +327,18 @@ const pose = (o) => Object.fromEntries(Object.entries(o).map(([k, [x, y, z]]) =>
 const POSES = {
   rifle: pose({ RightUpperArm: [-75, 0, -25], RightLowerArm: [-35, 0, 0], RightHand: [0, 0, 0], LeftUpperArm: [-80, -20, 30], LeftLowerArm: [-20, 0, 0], LeftHand: [0, 0, 0] }),
   pistol: pose({ RightUpperArm: [-88, 0, -8], RightLowerArm: [0, 0, 0], RightHand: [0, 0, 0], LeftUpperArm: [-85, 0, 28], LeftLowerArm: [-10, 0, 0], LeftHand: [0, 0, 0] }),
-  pickaxe: pose({ RightUpperArm: [-20, 0, -12], RightLowerArm: [-60, 0, 0] }),
+  pickaxe: pose({ RightUpperArm: [-8, 0, -10], RightLowerArm: [-25, 0, 0] }), // hangs at the thigh
   consume: pose({ RightUpperArm: [-60, 0, -5], RightLowerArm: [-90, 0, 0], LeftUpperArm: [-50, 0, 10], LeftLowerArm: [-80, 0, 0] }),
   build: pose({ RightUpperArm: [-70, 0, -10], RightLowerArm: [-40, 0, 0] }),
 };
-const _q = new THREE.Quaternion(), _e = new THREE.Euler();
+// Pickaxe swings, alternating: A overhead chop, B backhand from the left shoulder. Contact at 0.15 s.
+// keys: [t, RightUpperArm xyz, RightLowerArm x, Chest xyz] in degrees
+const SWINGS = [
+  [[0, -8, 0, -10, -25, 0, 0, 0], [0.09, -170, 0, -20, -80, -12, 20, 0], [0.15, -45, 0, -15, -15, 18, -8, 0], [0.3, -15, 0, -5, -25, 22, -12, 0], [0.55, -8, 0, -10, -25, 0, 0, 0]],
+  [[0, -110, 0, 35, -90, 0, -25, 0], [0.09, -175, 0, 10, -80, -10, -20, 0], [0.15, -45, 0, -10, -15, 18, 10, 0], [0.3, -15, 0, -5, -25, 22, 12, 0], [0.55, -8, 0, -10, -25, 0, 0, 0]],
+];
+const SWING_T = 0.55;
+const _q = new THREE.Quaternion(), _e = new THREE.Euler(), _X = new THREE.Vector3(1, 0, 0), _k = [];
 
 export class Avatar {
   constructor(outfitId, backblingId) {
@@ -331,9 +367,10 @@ export class Avatar {
     this.state = ''; this.w = new Map(); this.fade = 0.15;
     this.play('idle');
     this.upper = null; this.upperW = 0;
-    this.swingT = -1;
+    this.swingT = -1; this.swingV = 0;
     this.aimPitch = 0;
     this.twist = 0;
+    this.tilt = 0; // whole-body pitch (rad), skydive belly / dive
   }
 
   setOutfit(outfitId, backblingId) {
@@ -363,7 +400,7 @@ export class Avatar {
     }
   }
 
-  swing() { this.swingT = 0; }
+  swing(v = 0) { this.swingT = 0; this.swingV = v; }
 
   update(dt) {
     const list = this.list, saved = this.saved;
@@ -374,6 +411,7 @@ export class Avatar {
     for (let i = 0; i < list.length; i++) saved[i].copy(list[i].quaternion);
     this.savedHips.copy(this.bones.Hips.position);
     const b = this.bones;
+    if (this.tilt) b.Hips.quaternion.premultiply(_q.setFromAxisAngle(_X, this.tilt));
     // landing: knees give for a moment
     if (this.land > 0) {
       const k = this.land;
@@ -400,13 +438,15 @@ export class Avatar {
     }
     if (this.swingT >= 0) {
       this.swingT += dt;
-      const t = this.swingT / 0.45;
-      if (t >= 1) this.swingT = -1;
+      const t = this.swingT, keys = SWINGS[this.swingV];
+      if (t >= SWING_T) this.swingT = -1;
       else {
-        const raise = t < 0.35 ? t / 0.35 : 1 - (t - 0.35) / 0.65;
-        b.RightUpperArm.quaternion.setFromEuler(_e.set((-30 - raise * 130) * D, 0, (-20 + raise * 10) * D));
-        b.RightLowerArm.quaternion.setFromEuler(_e.set((-20 - raise * 40) * D, 0, 0));
-        b.Chest.quaternion.multiply(_q.setFromEuler(_e.set((t < 0.35 ? -10 * raise : 25 * (1 - raise)) * D, (raise * 25) * D, 0)));
+        let i = 0; while (keys[i + 1][0] < t) i++;
+        const a = keys[i], c = keys[i + 1], u = (t - a[0]) / (c[0] - a[0]), s = u * u * (3 - 2 * u);
+        for (let j = 1; j < 8; j++) _k[j] = (a[j] + (c[j] - a[j]) * s) * D;
+        b.RightUpperArm.quaternion.setFromEuler(_e.set(_k[1], _k[2], _k[3]));
+        b.RightLowerArm.quaternion.setFromEuler(_e.set(_k[4], 0, 0));
+        b.Chest.quaternion.multiply(_q.setFromEuler(_e.set(_k[5], _k[6], _k[7])));
       }
     }
   }

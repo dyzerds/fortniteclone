@@ -25,20 +25,24 @@ export const GRID = {
 };
 
 export const MOVE = {
-  jog: 5.5, sprint: 7.5, crouch: 3.0, swim: 3.2,
-  accelGround: 60, accelAir: 9,
-  gravity: 22, jumpHeight: 1.3,
-  slideBoost: 9.5, slideFriction: 5.5, slideSlopeAccel: 14, slideMin: 3.2,
+  jog: 5.5, sprint: 7.5, crouch: 3.4, swim: 3.2, swimDepth: 1.38, swimJump: 11,
+  strafeMul: 0.65, backMul: 0.55, // speed share when moving sideways / backwards
+  accelRun: 14, accelStop: 70, accelAir: 9,
+  gravity: 30, jumpSpeed: 6.5, jumpHold: 0.25, // apex ~2.3 m, ~0.87 s in the air
+  fallFlail: 1.5,      // seconds in the air before the long-fall pose
+  slideBoost: 8.3, slideFriction: 1.55, slideSlopeAccel: 14, slideMin: 5.2, // flat slide ~2 s, 1.1x down to 0.7x sprint
   mantleMax: 2.4, mantleTime: 0.35,
   fallSafe: 8, fallDmgPerM: 7,
   radius: 0.35, height: 1.85, crouchHeight: 1.25, headY: 1.5,
-  skydiveFall: 32, skydiveDive: 50, skydiveSteer: 22,
-  glideFall: 8.5, glideSpeed: 14, autoGlideHeight: 60,
+  skydiveFall: 20, skydiveDive: 40, skydiveSteer: 22,
+  glideFall: 4.5, glideSpeed: 14, autoGlideHeight: 35,
+  minDeploy: 12,       // air below needed to open the glider by hand (also mid-fall off builds)
 };
 
 export const CAMERA = {
-  fov: 80, adsFov: 58, scopeFov: 22,
-  dist: 3.3, adsDist: 1.7, shoulder: 0.75, pivotY: 1.65,
+  fov: 80, adsFov: 58, scopeFov: 38, // horizontal degrees
+  dist: 3.5, adsDist: 1.7, shoulder: 0.52, pivotY: 1.5, // framed to match the reference: body centre ~0.39 W, head top ~0.40 H, feet at the bottom edge
+  skydiveDist: 1.7, glideDist: 1.3, // added to dist in the air
 };
 
 // Build materials: hp grows from start to max over buildTime.
@@ -52,7 +56,7 @@ export const MAT_CAP = 999;
 export const BUILD_REACH = 1;   // cells
 
 export const HARVEST = {
-  swing: 0.9, reach: 2.6,
+  swing: 0.6, hitAt: 0.15, reach: 2.6,
   charDmg: 20, structDmg: 50, critMult: 2,
   yield: { tree: 6, rock: 5, metal: 5, wood: 5, brick: 5 },
 };

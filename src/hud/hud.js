@@ -5,7 +5,7 @@ import '@fontsource/nunito/800.css';
 import '@fontsource/nunito/900.css';
 import './hud.css';
 import * as THREE from 'three';
-import { WEAPONS, RARITIES, CONSUMABLES, POIS, WORLD, PLAYER, BUILD_COST, AMMO, MAT_CAP } from '../config.js';
+import { MATERIALS, WEAPONS, RARITIES, CONSUMABLES, POIS, WORLD, PLAYER, BUILD_COST, AMMO, MAT_CAP, MOVE } from '../config.js';
 import { colors, heights, getHeight } from '../world/terrain.js';
 import { icon } from './icons.js';
 import { itemName, itemRarity } from '../loot.js';
@@ -92,7 +92,9 @@ export function createHud(root, { onExit, onSound } = {}) {
     <div class="hurtdir"></div>
     <div class="lowhp"></div>
     <div class="dmg"></div>
-    <div class="wmark">${PIN}<b></b></div>
+    <div class="tbar"><div class="tb-track"><i></i></div><b></b></div>
+    <div class="gain"><img class="gi"><b></b></div>
+    <div class="wmark">${PIN}<b></b><i class="wc"></i></div>
     <div class="bigmap"><canvas width="760" height="760"></canvas><div class="bigmap-hint"></div></div>
     <div class="inv"></div>
     <div class="results"><div class="res-card"><div class="res-place"></div><div class="res-title"></div><div class="res-sub"></div>
@@ -108,13 +110,17 @@ export function createHud(root, { onExit, onSound } = {}) {
   const slots = $$('.slot'), mats = $$('.mat'), bps = $$('.bp');
   const xh = $('.xhair'), hit = $('.hitmark'), dmgLayer = $('.dmg'), feed = $('.feed');
   let hitT = 0, toastT = 0, cmsgT = 0, hurtT = 0, lastPhase = -1, lastShrink = false;
+  let pulseT = 0, drag = null;
+  const tbar = $('.tbar'), gainEl = $('.gain');
+  let tgtHit = null, gainMat = '', gainTot = 0, gainT = 9; // target health bar; material gain counter
+  const view = { z: 1, cx: 0, cz: 0 }, tgt = { z: 1, cx: 0, cz: 0 }; // big map view (zoom, centre in meters): shown / target
   let panel = null, marker = null, M = null; // panel: 'map' | 'inv' | null ; marker: { x, y, z } ; M: the match, for panel clicks
   $('.res-btn').onclick = () => onExit?.();
 
   function keyLabels() {
     bps.forEach((b, i) => setText(b.querySelector('kbd'), keyLabel(settings.keys[PIECE_KEYS[i]])));
     slots.forEach((s, i) => setText(s.querySelector('kbd'), keyLabel(settings.keys[i ? `slot${i}` : 'pickaxe'])));
-    $('.bigmap-hint').innerHTML = `Left click: place marker · Right click: remove · <kbd>${keyLabel(settings.keys.map)}</kbd> close`;
+    $('.bigmap-hint').innerHTML = `Click: place marker · Drag: pan · Wheel: zoom · Right click: remove · <kbd>${keyLabel(settings.keys.map)}</kbd> close`;
   }
 
   function centerMsg(text, t = 3) { setText($('.cmsg'), text); cmsgT = t; }
@@ -124,7 +130,8 @@ export function createHud(root, { onExit, onSound } = {}) {
   const api = {
     el,
     damage(point, n, info, camera) {
-      if (!point || settings.damageNumbers === 'Off') return;
+      if (info.ref && point) tgtHit = { ref: info.ref, point: point.clone(), t: 2.5 };
+      if (!point || settings.damageNumbers === 'Off' || info.pick) return;
       _p.copy(point).project(camera);
       if (_p.z > 1) return;
       const d = document.createElement('div');
@@ -135,6 +142,15 @@ export function createHud(root, { onExit, onSound } = {}) {
       dmgLayer.appendChild(d);
       setTimeout(() => d.remove(), 900);
       if (!info.struct) { hitT = 0.18; toggle(hit, 'head', info.head); }
+    },
+    gain(mat, n) {
+      gainTot = mat === gainMat && gainT < 2 ? gainTot + n : n;
+      gainMat = mat; gainT = 0;
+      gainEl.querySelector('.gi').src = icon('m:' + mat);
+      const b = gainEl.querySelector('b'); setText(b, `+${gainTot}`);
+      b.animate([{ transform: 'scale(1.25)' }, { transform: 'scale(1)' }], 150);
+      const f = document.createElement('b'); f.className = 'gfly'; f.textContent = `+${n}`;
+      gainEl.appendChild(f); setTimeout(() => f.remove(), 350);
     },
     hurt(attacker, player, yaw) {
       if (!attacker) return;
@@ -162,14 +178,15 @@ export function createHud(root, { onExit, onSound } = {}) {
     },
     jumped() { centerMsg('', 0); },
     get panel() { return panel; },
-    setPanel(p) { panel = p; toggle(el, 'map-open', p === 'map'); toggle(el, 'inv-open', p === 'inv'); invSel = null; invSig = ''; },
+    setPanel(p) { panel = p; toggle(el, 'map-open', p === 'map'); toggle(el, 'inv-open', p === 'inv'); invSel = null; invSig = '';
+      if (p === 'map') { pulseT = 0; Object.assign(view, { z: 1, cx: 0, cz: 0 }); Object.assign(tgt, view); } },
     // place a marker at a world point (null clears it)
     mark(pt) {
       marker = pt ? { x: clamp(pt.x, -half, half), y: pt.y, z: clamp(pt.z, -half, half) } : null;
       onSound?.('click');
     },
     get marker() { return marker; },
-    reset() { api.setPanel(null); el.classList.remove('show-results', 'won'); marker = null; feed.innerHTML = ''; lastPhase = -1; keyLabels(); },
+    reset() { api.setPanel(null); el.classList.remove('show-results', 'won'); marker = null; feed.innerHTML = ''; lastPhase = -1; tgtHit = null; gainT = 9; keyLabels(); },
     show(on) { toggle(el, 'hidden', !on); },
   };
 
@@ -180,6 +197,28 @@ export function createHud(root, { onExit, onSound } = {}) {
     hitT -= dt; toastT -= dt; cmsgT -= dt; hurtT -= dt;
     toggle(hit, 'on', hitT > 0); toggle($('.toast'), 'on', toastT > 0); toggle($('.cmsg'), 'on', cmsgT > 0 || p.mode === 'bus');
     setStyle($('.hurtdir'), 'opacity', String(Math.max(0, Math.min(1, hurtT))));
+    gainT += dt;
+    setStyle(gainEl, 'opacity', String(gainT < 1.5 ? 1 : Math.max(0, 1 - (gainT - 1.5) / 0.3)));
+    let tv = false;
+    if (tgtHit) {
+      const r = tgtHit.ref, max = r.maxHp ?? MATERIALS[r.mat]?.max ?? 1;
+      tgtHit.t -= dt;
+      if (tgtHit.t <= 0 || r.alive === false || r.dead) tgtHit = null;
+      else {
+        _p.copy(tgtHit.point); _p.y += 0.9; _p.project(camera);
+        if (_p.z < 1) {
+          tv = true;
+          const f = Math.max(0, Math.min(1, r.hp / max));
+          setStyle(tbar, 'transform', `translate(${((_p.x * 0.5 + 0.5) * innerWidth).toFixed(0)}px, ${((-_p.y * 0.5 + 0.5) * innerHeight).toFixed(0)}px) translate(-50%, -100%)`);
+          setStyle(tbar, 'opacity', String(Math.min(1, tgtHit.t / 0.3)));
+          const fill = tbar.querySelector('i');
+          setStyle(fill, 'width', `${(f * 100).toFixed(0)}%`);
+          toggle(fill, 'y', f <= 0.5 && f > 0.25); toggle(fill, 'r', f <= 0.25);
+          setText(tbar.querySelector('b'), `${Math.ceil(r.hp)} / ${max}`);
+        }
+      }
+    }
+    toggle(tbar, 'on', tv);
     setStyle($('.lowhp'), 'opacity', String(p.alive ? Math.max(0, (35 - p.health) / 35) * 0.8 : 0));
 
     // vitals
@@ -240,32 +279,45 @@ export function createHud(root, { onExit, onSound } = {}) {
     // interaction prompt
     const f = p.alive && p.mode === 'ground' ? m.loot.focus(p) : null;
     const pr = $('.prompt');
-    toggle(pr, 'on', !!f);
-    if (f) {
+    // in the air: open / close the glider (also mid-fall off a build, when there is room)
+    const jk = keyLabel(settings.keys.jump);
+    const sky = !p.alive ? '' : p.mode === 'skydive' ? `<kbd>${jk}</kbd> Deploy Glider` : p.mode === 'glide' ? (p.canClose ? `<kbd>${jk}</kbd> Free Fall` : '')
+      : p.mode === 'ground' && !p.grounded && !p.swimming && p.airT > 0.2 && p.deployRoom() > MOVE.minDeploy ? `<kbd>${jk}</kbd> Deploy Glider` : '';
+    toggle(pr, 'on', !!(f || sky));
+    if (f || sky) {
       const k = keyLabel(settings.keys.interact);
-      const html = f.kind ? `<kbd>${k}</kbd> ${f.kind === 'chest' ? 'Open Chest' : 'Open Ammo Box'}` : `<kbd>${k}</kbd> Pick up <b style="color:${RARITIES[itemRarity(f.item)].color}">${itemName(f.item)}</b>${f.item.kind === 'heal' ? ` ×${f.item.count}` : ''}`;
+      const html = sky || (f.kind ? `<kbd>${k}</kbd> ${f.kind === 'chest' ? 'Open Chest' : 'Open Ammo Box'}` : `<kbd>${k}</kbd> Pick up <b style="color:${RARITIES[itemRarity(f.item)].color}">${itemName(f.item)}</b>${f.item.kind === 'heal' ? ` ×${f.item.count}` : ''}`);
       if (pr._h !== html) { pr._h = html; pr.innerHTML = html; }
     }
 
-    // world marker: pin over the spot with the distance, kept on screen while in front of the camera
+    // world marker: pin over the spot with the distance; pinned to the screen edge (with a chevron) when off screen or behind
     const wm = $('.wmark');
     let wmOn = false;
     if (marker && !scoped && panel !== 'map') {
+      const W = innerWidth, H = innerHeight;
       _p.set(marker.x, marker.y + 1.2, marker.z);
-      camera.getWorldDirection(_d);
-      if (_o.subVectors(_p, camera.position).dot(_d) > 0) {
-        _p.project(camera);
-        const x = clamp((_p.x * 0.5 + 0.5) * innerWidth, 24, innerWidth - 24), y = clamp((-_p.y * 0.5 + 0.5) * innerHeight, 48, innerHeight - 24);
-        setStyle(wm, 'transform', `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px) translate(-50%, -100%)`);
-        setText(wm.querySelector('b'), `${Math.round(Math.hypot(marker.x - p.pos.x, marker.z - p.pos.z))} m`);
-        wmOn = true;
+      _o.copy(_p).applyMatrix4(camera.matrixWorldInverse); // camera space: x right, y up, -z forward
+      let x = 0, y = 0, on = false;
+      if (_o.z < 0) { _p.project(camera); x = (_p.x * 0.5 + 0.5) * W; y = (-_p.y * 0.5 + 0.5) * H; on = x >= 24 && x <= W - 24 && y >= 48 && y <= H - 24; }
+      let ang = 0;
+      if (!on) {
+        let dx = _o.x, dy = -_o.y;
+        if (_o.z < 0) { dx = x - W / 2; dy = y - H / 2; }
+        if (Math.hypot(dx, dy) < 1e-4) dy = 1;
+        const t = Math.min(dx ? ((dx > 0 ? W - 52 : 52) - W / 2) / dx : Infinity, dy ? ((dy > 0 ? H - 40 : 90) - H / 2) / dy : Infinity);
+        x = W / 2 + dx * t; y = H / 2 + dy * t; ang = Math.atan2(dx, -dy);
       }
+      setStyle(wm, 'transform', on ? `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px) translate(-50%, -100%)` : `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px) translate(-50%, -50%)`);
+      setStyle(wm.querySelector('.wc'), 'transform', `rotate(${ang.toFixed(3)}rad) translateY(-34px)`);
+      toggle(wm, 'off', !on);
+      setText(wm.querySelector('b'), `${Math.round(Math.hypot(marker.x - p.pos.x, marker.z - p.pos.z))} m`);
+      wmOn = true;
     }
     toggle(wm, 'on', wmOn);
 
     drawCompass(p);
     drawMinimap(m);
-    if (panel === 'map') drawBigMap(m);
+    if (panel === 'map') drawBigMap(m, dt);
     if (panel === 'inv') renderInv(m);
   };
 
@@ -289,7 +341,12 @@ export function createHud(root, { onExit, onSound } = {}) {
     if (marker) { // bearing to the marker (0 = north = -z, 90 = east = +x), pinned to the edge when outside the strip
       const b = Math.atan2(marker.x - p.pos.x, -(marker.z - p.pos.z)) * 180 / Math.PI;
       const rel = ((b - deg + 540) % 360) - 180;
-      pin(g, W / 2 + clamp(rel, -68, 68) * pxPerDeg, 22, 6);
+      const px = W / 2 + clamp(rel, -68, 68) * pxPerDeg;
+      pin(g, px, 22, 6);
+      if (Math.abs(px - W / 2) >= 40) {
+        g.textAlign = 'left'; g.font = '13px "Lilita One"'; g.fillStyle = '#ffd84a'; g.shadowColor = 'rgba(0,20,60,0.8)'; g.shadowBlur = 4;
+        g.fillText(`${Math.round(Math.hypot(marker.x - p.pos.x, marker.z - p.pos.z))}m`, px + 10, 16); g.shadowBlur = 0;
+      }
     }
   }
 
@@ -342,14 +399,24 @@ export function createHud(root, { onExit, onSound } = {}) {
     setText($('.mm-name'), poi?.name ?? '');
   }
 
-  function drawBigMap(m) {
-    const g = big, W = 760, scale = W / WORLD.size, map = (x, z) => [(x + WORLD.size / 2) * scale, (z + WORLD.size / 2) * scale];
-    g.drawImage(MAP, 0, 0, W, W);
-    if (m.storm) stormOverlay(g, m.storm, -WORLD.size / 2, -WORLD.size / 2, scale, 0, 0, W, W);
+  const BW = 760;
+  // keep the view covering the whole map
+  const clampView = (v) => { const lim = half * (1 - 1 / v.z); v.cx = clamp(v.cx, -lim, lim); v.cz = clamp(v.cz, -lim, lim); };
+  const mapPt = (v, x, z) => { const s = BW / WORLD.size * v.z; return [BW / 2 + (x - v.cx) * s, BW / 2 + (z - v.cz) * s]; };
+
+  function drawBigMap(m, dt) {
+    const g = big, scale = BW / WORLD.size * view.z, map = (x, z) => mapPt(view, x, z);
+    const k = 1 - Math.exp(-14 * dt);
+    for (const a of ['z', 'cx', 'cz']) view[a] += (tgt[a] - view[a]) * k;
+    pulseT += dt;
+    const sw = MAP.width / view.z;
+    g.drawImage(MAP, toMap(view.cx) - sw / 2, toMap(view.cz) - sw / 2, sw, sw, 0, 0, BW, BW);
+    if (m.storm) stormOverlay(g, m.storm, view.cx, view.cz, scale, BW / 2, BW / 2, BW, BW);
     busLine(g, m, map);
     g.textAlign = 'center'; g.font = '20px "Lilita One"';
     for (const q of POIS) {
       const [x, y] = map(q.x, q.z);
+      if (x < -80 || x > BW + 80 || y < -20 || y > BW + 20) continue;
       g.lineWidth = 4; g.strokeStyle = 'rgba(10,25,60,0.85)'; g.strokeText(q.name.toUpperCase(), x, y); g.fillStyle = '#fff'; g.fillText(q.name.toUpperCase(), x, y);
     }
     if (marker) {
@@ -358,16 +425,53 @@ export function createHud(root, { onExit, onSound } = {}) {
       const t = `${Math.round(Math.hypot(marker.x - m.player.pos.x, marker.z - m.player.pos.z))} m`;
       g.font = '16px "Lilita One"'; g.lineWidth = 4; g.strokeStyle = 'rgba(10,25,60,0.85)'; g.strokeText(t, x, y + 18); g.fillStyle = '#ffd84a'; g.fillText(t, x, y + 18);
     }
-    arrow(g, ...map(m.player.pos.x, m.player.pos.z), m.player.yaw, 10);
+    let [ax, ay] = map(m.player.pos.x, m.player.pos.z);
+    const out = ax < 18 || ax > BW - 18 || ay < 18 || ay > BW - 18;
+    if (out) { ax = clamp(ax, 18, BW - 18); ay = clamp(ay, 18, BW - 18); }
+    else for (let i = 0; i < 2; i++) { // arrival pulse: two expanding rings
+      const t = (pulseT - i * 0.4) / 1.2;
+      if (t < 0 || t > 1) continue;
+      g.globalAlpha = 1 - t; g.strokeStyle = '#fff'; g.lineWidth = 3;
+      g.beginPath(); g.arc(ax, ay, 10 + 30 * t, 0, Math.PI * 2); g.stroke();
+    }
+    g.globalAlpha = 1;
+    arrow(g, ax, ay, m.player.yaw, 10);
   }
 
-  // big map clicks: left places the marker (or removes it when clicked again), right removes it
+  // big map: wheel zooms at the cursor, left drag pans, left click places the marker (or removes it when clicked on), right click removes it
   const bigC = $('.bigmap canvas');
+  const canvasXY = (e) => { const r = bigC.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * BW, (e.clientY - r.top) / r.height * BW, r.width / BW]; };
+  bigC.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    const [px, py] = canvasXY(e), s0 = BW / WORLD.size * tgt.z;
+    const wx = tgt.cx + (px - BW / 2) / s0, wz = tgt.cz + (py - BW / 2) / s0;
+    tgt.z = clamp(tgt.z * Math.pow(1.25, e.deltaY < 0 ? 1 : -1), 1, 4);
+    const s1 = BW / WORLD.size * tgt.z;
+    tgt.cx = wx - (px - BW / 2) / s1; tgt.cz = wz - (py - BW / 2) / s1;
+    clampView(tgt);
+  }, { passive: false });
   bigC.addEventListener('mousedown', (e) => {
-    const r = bigC.getBoundingClientRect();
-    const x = (e.clientX - r.left) / r.width * WORLD.size - half, z = (e.clientY - r.top) / r.height * WORLD.size - half;
-    if (e.button === 2 || (marker && Math.hypot(marker.x - x, marker.z - z) < WORLD.size * 0.02)) { if (marker) api.mark(null); }
-    else if (e.button === 0) api.mark({ x, y: Math.max(getHeight(x, z), WORLD.waterLevel), z });
+    if (e.button === 2) { if (marker) api.mark(null); }
+    else if (e.button === 0) drag = { x: e.clientX, y: e.clientY, cx: tgt.cx, cz: tgt.cz, moved: false };
+  });
+  addEventListener('mousemove', (e) => {
+    if (!drag) return;
+    if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 5) { drag.moved = true; bigC.classList.add('drag'); }
+    if (!drag.moved) return;
+    const k = BW / bigC.getBoundingClientRect().width / (BW / WORLD.size * tgt.z);
+    const nx = drag.cx - (e.clientX - drag.x) * k, nz = drag.cz - (e.clientY - drag.y) * k;
+    view.cx += nx - tgt.cx; view.cz += nz - tgt.cz; tgt.cx = nx; tgt.cz = nz; // view follows 1:1 while dragging
+    clampView(tgt); clampView(view);
+  });
+  addEventListener('mouseup', (e) => {
+    if (!drag) return;
+    const d = drag; drag = null; bigC.classList.remove('drag');
+    if (d.moved || e.button !== 0 || panel !== 'map') return;
+    const [px, py, css] = canvasXY(e), s = BW / WORLD.size * view.z;
+    const x = view.cx + (px - BW / 2) / s, z = view.cz + (py - BW / 2) / s;
+    const [mx, my] = marker ? mapPt(view, marker.x, marker.z) : [1e9, 1e9];
+    if (Math.hypot(mx - px, my - py) * css < 14) api.mark(null);
+    else api.mark({ x, y: Math.max(getHeight(x, z), WORLD.waterLevel), z });
   });
 
   // ---- inventory panel ----

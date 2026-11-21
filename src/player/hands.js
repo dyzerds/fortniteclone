@@ -37,7 +37,7 @@ export class Hands {
     this.mode = 'combat'; // combat | build | edit
     this.piece = 'wall'; this.rot = 0; this.mat = 'wood';
     this.eye = new THREE.Vector3(); this.dir = new THREE.Vector3(0, 0, -1); this.aimPoint = new THREE.Vector3();
-    this.cool = 0; this.swingT = -1; this.weak = null; this.turboT = 0;
+    this.cool = 0; this.swingT = -1; this.combo = 1; this.weak = null; this.turboT = 0;
     this.edit = null; // { p, sel, paint, back }
     this.reloadT = 0; this.useT = 0; this.bloom = 0; this.kick = 0; this.ads = false;
     this.held = null; this.heldKey = ''; this.models = new Map();
@@ -152,10 +152,10 @@ export class Hands {
     if (this.swingT >= 0) {
       const prev = this.swingT;
       this.swingT += dt;
-      if (prev < 0.2 && this.swingT >= 0.2) this.harvestHit();
+      if (prev < HARVEST.hitAt && this.swingT >= HARVEST.hitAt) this.harvestHit();
       if (this.swingT > 0.5) this.swingT = -1;
     }
-    if (it.fireHeld && this.cool <= 0) { this.cool = HARVEST.swing; this.swingT = 0; this.ch.avatar.swing(); }
+    if (it.fireHeld && this.cool <= 0) { this.cool = HARVEST.swing; this.swingT = 0; this.combo ^= 1; this.ch.avatar.swing(this.combo); }
   }
 
   harvestHit() {
@@ -180,10 +180,12 @@ export class Hands {
       const n = this.inv.addMat(mat, HARVEST.yield[isProp ? ref.kind : mat] * (crit ? 2 : 1));
       if (n) this.ctx.onGain?.(this, mat, n);
     }
-    fx.burst(point, MATERIALS[mat ?? ref.mat]?.color ?? '#cfcfcf', crit ? 10 : 5, 0.14, 4);
-    this.ctx.onHit?.(this, point.clone(), dmg, { kind: 'struct', crit });
+    const col = MATERIALS[mat ?? ref.mat]?.color ?? '#cfcfcf';
+    fx.burst(point, col, crit ? 10 : 5, 0.14, 4);
+    if (crit) fx.puff(this.weak.point, '#bff6ff', 1.2, 0.18);
+    this.ctx.onHit?.(this, point.clone(), dmg, { kind: 'struct', crit, ref, pick: true });
     this.ctx.sound?.(crit ? 'crit' : 'harvest', ch);
-    if (broke) { this.weak = null; return; }
+    if (broke) { fx.burst(point, col, 14, 0.18, 6); this.weak = null; return; }
     // next weak point: random spot near the hit, on the hit surface
     _n.set(hit.normal.x, hit.normal.y, hit.normal.z);
     _a.set(-_n.z, 0, _n.x); if (_a.lengthSq() < 0.01) _a.set(1, 0, 0); _a.normalize();
@@ -262,7 +264,7 @@ export class Hands {
       if (a.kind === 'char') { this.ctx.hurt(ref, a.dmg, this.ch, { head: a.head, point: a.point, cls }); continue; }
       if (a.kind === 'piece') this.ctx.building.damage(ref, a.dmg);
       else damageProp(ref, a.dmg);
-      this.ctx.onHit?.(this, a.point, a.dmg, { kind: 'struct' });
+      this.ctx.onHit?.(this, a.point, a.dmg, { kind: 'struct', ref });
     }
   }
 
@@ -302,7 +304,7 @@ export class Hands {
     let key = '', pose = null;
     if (ch.alive && ch.mode === 'ground' && !ch.swimming && !emoting) {
       if (this.mode !== 'combat') pose = 'build';
-      else if (!cur) { key = 'pick'; pose = 'pickaxe'; }
+      else if (!cur) { key = 'pick'; pose = ch.sprinting ? null : 'pickaxe'; } // sprint: arms pump
       else if (cur.kind === 'heal') { key = `heal:${cur.id}`; pose = this.useT > 0 ? 'consume' : 'pickaxe'; }
       else { key = `w:${cur.cls}:${cur.rarity}`; pose = cur.cls === 'pistol' ? 'pistol' : 'rifle'; }
     }
@@ -320,8 +322,20 @@ export class Hands {
       this.held.translateY(0.1); this.held.translateZ(-0.12);
     }
     const gliding = ch.mode === 'glide' && ch.alive;
-    if (gliding && !this.glider) { this.glider = gliderModel(ch.cosmetics.glider ?? 'sail'); this.glider.position.y = 2.6; this.glider.rotation.y = Math.PI; a.root.add(this.glider); }
-    if (this.glider) this.glider.visible = gliding;
+    if (gliding && !this.glider) {
+      const g = this.glider = gliderModel(ch.cosmetics.glider ?? 'sail');
+      const bb = new THREE.Box3().setFromObject(g); // wing tips (glider space) for the contrails
+      g.userData.tips = [new THREE.Vector3(bb.min.x, 0, bb.max.z), new THREE.Vector3(bb.max.x, 0, bb.max.z)];
+      g.rotation.y = Math.PI; a.root.add(g);
+    }
+    if (this.glider) {
+      this.glider.visible = gliding;
+      // unfolds: hidden 0.5 s, then pops open with overshoot by 1.4 s
+      const u = Math.min(1, Math.max(0, (ch.deployT - 0.5) / 0.9)), k = 1 + 2.7 * (u - 1) ** 3 + 1.7 * (u - 1) ** 2;
+      this.glider.scale.setScalar(Math.max(0.001, k));
+      this.glider.position.y = 1.9 + 0.7 * u;
+      this.glider.rotation.z = ch.gliderRoll;
+    }
     if (!ch.isBot) {
       const wk = this.ctx.fx.weak, show = this.weak && key === 'pick' && (this.weak.ref.alive ?? !this.weak.ref.dead);
       wk.visible = !!show;

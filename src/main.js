@@ -41,6 +41,7 @@ const match = createMatch({
   scene, rig, fx, building, pois, loadout,
   events: {
     damage: (pt, n, info) => { hud.damage(pt, n, info, camera); if (!info.struct) audio.play(info.head ? 'headshot' : 'hit'); },
+    gain: (mat, n) => hud.gain(mat, n),
     hurt: (att) => { hud.hurt(att, match.player, match.player.yaw); audio.play('hurt'); },
     eliminated: (t, by, cls, left) => hud.eliminated(t, by, cls, left, match.player),
     over: (r) => { recordMatch(r); hud.over(r); audio.play(r.victory ? 'victory' : 'eliminated'); },
@@ -51,6 +52,18 @@ const match = createMatch({
   },
 });
 const look = { yaw: 0, pitch: -0.15, emote: null };
+
+// sky beam over the map marker (alpha gradient: opaque at the base, clear at the top)
+const beam = (() => {
+  const c = Object.assign(document.createElement('canvas'), { width: 1, height: 256 }), g = c.getContext('2d');
+  const gr = g.createLinearGradient(0, 0, 0, 256); gr.addColorStop(0, '#000'); gr.addColorStop(1, '#fff');
+  g.fillStyle = gr; g.fillRect(0, 0, 1, 256);
+  const mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 260, 12, 1, true), new THREE.MeshBasicMaterial({
+    color: '#ffd84a', transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false, alphaMap: new THREE.CanvasTexture(c) }));
+  mesh.visible = false; mesh.renderOrder = 100; mesh.frustumCulled = false;
+  scene.add(mesh);
+  return mesh;
+})();
 
 const ui = createUi({
   renderer, scene, camera, sky, terrain, composer, loadout, audio,
@@ -68,7 +81,7 @@ function play(dev = false) {
   input.lock(canvas);
 }
 function toLobby() {
-  match.end(); hud.reset(); hud.show(false);
+  match.end(); hud.reset(); hud.show(false); beam.visible = false;
   if (document.pointerLockElement) document.exitPointerLock();
   ui.show('lobby');
 }
@@ -156,6 +169,9 @@ renderer.setAnimationLoop((now) => {
     while (acc >= STEP) { match.tick(STEP); input.endTick(); acc -= STEP; }
     match.frame(dt, look);
     hud.update(dt, match, camera, rig);
+    const mk = hud.marker, bd = mk ? Math.hypot(mk.x - match.player.pos.x, mk.z - match.player.pos.z) : 0;
+    beam.visible = !!mk && live() && bd > 6;
+    if (beam.visible) { beam.position.set(mk.x, mk.y + 130, mk.z); beam.material.opacity = Math.max(0.15, Math.min(0.6, bd / 120)); }
     audio.listen(camera.position, look.yaw);
   }
   sky.update(dt, match.player.pos, camera.position);

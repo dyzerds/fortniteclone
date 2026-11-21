@@ -1,4 +1,4 @@
-// Pooled 3D effects: debris chunks, bullet tracers, impact puffs, harvest weak-point marker.
+// Pooled 3D effects: debris chunks, bullet tracers, impact puffs, water ripples, contrails, harvest weak-point marker.
 import * as THREE from 'three';
 import { glowTexture } from './textures.js';
 
@@ -39,6 +39,27 @@ export function createFx(scene) {
   weak.add(weakCore); weak.visible = false; weak.renderOrder = 5; weakCore.renderOrder = 5;
   scene.add(weak);
 
+  // water ripples: flat rings that grow and fade
+  const ringGeo = new THREE.RingGeometry(0.85, 1, 32).rotateX(-Math.PI / 2);
+  const ripples = Array.from({ length: 16 }, () => {
+    const m = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, depthWrite: false }));
+    m.visible = false; scene.add(m);
+    return { m, life: 0, max: 1, size: 1 };
+  });
+  let rHead = 0;
+
+  // contrails: a short history of points per slot, fading toward the tail
+  const TN = 14;
+  const trails = Array.from({ length: 4 }, () => {
+    const g = new THREE.BufferGeometry(), col = new Float32Array(TN * 4);
+    for (let i = 0; i < TN; i++) col.set([1, 1, 1, 0.55 * (1 - i / TN)], i * 4);
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(TN * 3), 3).setUsage(THREE.DynamicDrawUsage));
+    g.setAttribute('color', new THREE.BufferAttribute(col, 4));
+    const line = new THREE.Line(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false }));
+    line.frustumCulled = false; scene.add(line);
+    return { line, n: 0, hit: false };
+  });
+
   return {
     weak,
     burst(pos, color, n = 10, size = 0.25, speed = 5) {
@@ -72,7 +93,32 @@ export function createFx(scene) {
       const p = puffs[pHead]; pHead = (pHead + 1) % MAX_PUFFS;
       p.s.position.copy(pos); p.s.material.color.set(color); p.life = p.max = life; p.size = size; p.s.visible = true;
     },
+    ripple(pos, size = 1.5, life = 1.2) {
+      const r = ripples[rHead]; rHead = (rHead + 1) % ripples.length;
+      r.m.position.copy(pos); r.life = r.max = life; r.size = size; r.m.visible = true;
+    },
+    // call every frame while the slot is on; slots left alone shrink away
+    trail(i, pos) {
+      const t = trails[i], a = t.line.geometry.attributes.position;
+      a.array.copyWithin(3, 0, (TN - 1) * 3); a.array.set([pos.x, pos.y, pos.z], 0);
+      t.n = Math.min(TN, t.n + 1); t.hit = true;
+    },
     update(dt) {
+      for (const r of ripples) {
+        if (!r.m.visible) continue;
+        r.life -= dt;
+        if (r.life <= 0) { r.m.visible = false; continue; }
+        const t = 1 - r.life / r.max;
+        r.m.scale.setScalar(r.size * (0.3 + 0.7 * Math.sqrt(t)));
+        r.m.material.opacity = 0.55 * (1 - t);
+      }
+      for (const t of trails) {
+        if (!t.hit && t.n > 0) t.n--;
+        t.hit = false;
+        t.line.visible = t.n > 1;
+        t.line.geometry.setDrawRange(0, t.n);
+        t.line.geometry.attributes.position.needsUpdate = true;
+      }
       let any = false;
       for (let i = 0; i < MAX_DEBRIS; i++) {
         const d = parts[i];
