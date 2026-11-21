@@ -75,8 +75,9 @@ export class BotBrain {
     if (lootGoal) {
       // give up on loot we cannot reach (inside a closed house, up a cliff)
       const key = lootGoal.entry ?? lootGoal.box;
-      if (this.goalKey !== key) { this.goalKey = key; this.goalSince = this.m.time(); }
-      else if (this.m.time() - this.goalSince > 9) this.ignore.add(key);
+      const gd = Math.hypot(lootGoal.x - ch.pos.x, lootGoal.z - ch.pos.z);
+      if (this.goalKey !== key || gd < this.goalBest - 1) { this.goalKey = key; this.goalBest = gd; this.goalSince = this.m.time(); }
+      else if (this.m.time() - this.goalSince > 7) this.ignore.add(key); // no progress for 7 s
       this.task = 'loot'; this.goal = lootGoal; return;
     }
     if (inv.mats.wood < 60 && !this.enemy) {
@@ -126,6 +127,34 @@ export class BotBrain {
       const d = c.pos.distanceTo(ch.pos);
       if (d < bd && Math.abs(c.pos.y - ch.pos.y) < 2.5) { bd = d; best = { x: c.pos.x, z: c.pos.z, box: c }; }
     }
+    return best;
+  }
+
+  // next point toward (gx, gz): loot inside a house goes through its door, around the house corners if needed
+  route(gx, gz) {
+    const p = this.ch.pos, inBox = (h, x, z, m = 0) => x > h.x0 - m && x < h.x1 + m && z > h.z0 - m && z < h.z1 + m;
+    const hg = this.m.houses?.find((h) => inBox(h, gx, gz));
+    const hb = this.m.houses?.find((h) => inBox(h, p.x, p.z, 0.3));
+    // in the doorway lane: within 0.45 m of the door axis and 2.2 m of the wall (side: +1 outside, -1 inside)
+    const lane = (h, side) => {
+      const nx = (h.out[0] - h.in[0]) / 3.2, nz = (h.out[1] - h.in[1]) / 3.2, rx = p.x - (h.in[0] + h.out[0]) / 2, rz = p.z - (h.in[1] + h.out[1]) / 2;
+      const depth = (rx * nx + rz * nz) * side;
+      return Math.abs(rx * nz - rz * nx) < 0.45 && depth > -0.5 && depth < 2.2;
+    };
+    if (hb && hb !== hg) return lane(hb, -1) ? hb.out : hb.in; // leave a house by its door
+    if (!hg || hb === hg) return [gx, gz];
+    if (lane(hg, 1)) return hg.in;
+    if (!crosses(hg, p.x, p.z, hg.out[0], hg.out[1])) return hg.out;
+    // shortest way round: bot -> corner (-> next corner) -> door; corners sit 1.5 m off the walls
+    const cs = [[hg.x0 - 1.5, hg.z0 - 1.5], [hg.x1 + 1.5, hg.z0 - 1.5], [hg.x1 + 1.5, hg.z1 + 1.5], [hg.x0 - 1.5, hg.z1 + 1.5]];
+    const sees = (a, b) => !crosses(hg, a[0], a[1], b[0], b[1]), dist = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+    const toDoor = cs.map((c) => (sees(c, hg.out) ? dist(c, hg.out) : Math.min(...cs.map((c2) => (sees(c2, hg.out) && sees(c, c2) ? dist(c, c2) + dist(c2, hg.out) : Infinity)))));
+    let best = hg.out, bd = Infinity;
+    cs.forEach((c, i) => {
+      if (dist(c, [p.x, p.z]) < 1.5 || !sees([p.x, p.z], c)) return; // not the corner we stand on
+      const d = dist(c, [p.x, p.z]) + toDoor[i];
+      if (d < bd) { bd = d; best = c; }
+    });
     return best;
   }
 
@@ -188,11 +217,12 @@ export class BotBrain {
       if (h.mode === 'build' && !it.build) it.slot = this.backTo ?? 0;
     } else if (this.goal) {
       const dx = this.goal.x - ch.pos.x, dz = this.goal.z - ch.pos.z, d = Math.hypot(dx, dz);
-      yaw = yawTo(dx, dz);
+      const [sx, sz] = this.goal.prop ? [this.goal.x, this.goal.z] : this.route(this.goal.x, this.goal.z);
+      yaw = yawTo(sx - ch.pos.x, sz - ch.pos.z);
       const reach = this.goal.prop ? 2.2 : 2.4; // player interact reach is 2.6
       if (d > reach) {
-        // loot behind a house wall (bots don't path to doors): pickaxe through it
-        if ((this.goal.entry || this.goal.box) && d < 8 && this.stuckT > 0.3 && this.wallAhead(dx / d, dz / d)) this.breachT = 1.2;
+        // still walled off (upper floor, blocked door): pickaxe through
+        if ((this.goal.entry || this.goal.box) && sx === this.goal.x && sz === this.goal.z && d < 8 && this.stuckT > 0.3 && this.wallAhead(dx / d, dz / d)) this.breachT = 1.2;
         if (this.breachT > 0) { this.avoidT = 0; if (h.inv.sel !== 0) it.slot = 0; else it.fireHeld = true; } else { inp.mz = 1; inp.sprint = d > 8; }
       }
       else if (this.goal.entry) { this.m.loot.take(this.goal.entry, h); this.goal = null; }
@@ -217,4 +247,17 @@ export class BotBrain {
     h.tick(it, dt);
     inp.ads = false; inp.jumpHeld = inp.jump;
   }
+}
+
+// does segment (ax,az)-(bx,bz) pass through house box h (slab test)
+function crosses(h, ax, az, bx, bz) {
+  let t0 = 0, t1 = 1;
+  for (const [a, d, lo, hi] of [[ax, bx - ax, h.x0, h.x1], [az, bz - az, h.z0, h.z1]]) {
+    if (Math.abs(d) < 1e-9) { if (a <= lo || a >= hi) return false; continue; }
+    let u = (lo - a) / d, v = (hi - a) / d;
+    if (u > v) [u, v] = [v, u];
+    t0 = Math.max(t0, u); t1 = Math.min(t1, v);
+    if (t0 >= t1) return false;
+  }
+  return true;
 }

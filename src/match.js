@@ -51,7 +51,7 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
   chars.push(player);
 
   const alive = () => chars.reduce((n, c) => n + (c.alive ? 1 : 0), 0);
-  const brainCtx = { player, chars, loot, storm: () => stormNow, time: () => time };
+  const brainCtx = { player, chars, loot, houses: pois.houses, storm: () => stormNow, time: () => time };
 
   function makeBots(n) {
     for (const c of chars.splice(1)) { c.hands.dispose(); c.dispose(); }

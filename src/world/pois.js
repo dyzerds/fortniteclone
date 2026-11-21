@@ -37,7 +37,7 @@ export function createPois(scene) {
   const carCols = ['#ff4f5e', '#3fa3ff', '#ffd21f', '#5fd14a', '#ff8a1f', '#c45cff', '#f2f2f2'];
   const r0 = rng(777);
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), s = new THREE.Vector3(1, 1, 1), v = new THREE.Vector3();
-  const spots = [];
+  const spots = [], houses = []; // houses: ground-floor box + door points for bot pathing
 
   for (const poi of POIS) {
     const r = rng(Math.round(poi.x * 13 + poi.z * 7));
@@ -57,7 +57,7 @@ export function createPois(scene) {
 
   // houses are (re)built every match because they can be destroyed
   function build(building) {
-    spots.length = 0;
+    spots.length = 0; houses.length = 0;
     for (const poi of POIS) {
       const r = rng(Math.round(poi.x * 31 + poi.z * 17));
       const l0 = Math.round(poi.h / H);
@@ -65,20 +65,23 @@ export function createPois(scene) {
       const ci = Math.floor(poi.x / C), ck = Math.floor(poi.z / C);
       const R2 = Math.floor(poi.r / C) - 2;
       const industrial = poi.name.startsWith('Rustbolt');
-      for (let tries = 0, houses = 0; tries < 60 && houses < 7; tries++) {
+      for (let tries = 0, made = 0; tries < 60 && made < 7; tries++) {
         const w = industrial ? 1 + (r() < 0.5) : 2 + (r() < 0.4), d = industrial ? 2 + (r() < 0.5) : 2 + (r() < 0.5);
         const i0 = ci + Math.round((r() - 0.5) * 2 * R2), k0 = ck + Math.round((r() - 0.5) * 2 * R2);
         let free = true;
         for (let a = -1; a <= w && free; a++) for (let b = -1; b <= d && free; b++) if (used.has(`${i0 + a},${k0 + b}`)) free = false;
         if (!free || Math.hypot((i0 + w / 2) * C - poi.x, (k0 + d / 2) * C - poi.z) > poi.r - 8) continue;
         for (let a = 0; a < w; a++) for (let b = 0; b < d; b++) used.add(`${i0 + a},${k0 + b}`);
-        houses++;
+        made++;
         const stories = industrial ? 1 : 1 + (r() < 0.55 && d >= 2 ? 1 : 0);
         const wallStyle = industrial ? 'container' : pick(r, WALLS), roofStyle = pick(r, ROOFS);
         const mat = industrial ? 'metal' : r() < 0.5 ? 'brick' : 'wood';
         const opt = (style, tiles) => ({ style, instant: true, tiles });
         const doorSide = Math.floor(r() * 4);
         const rampCell = stories > 1 ? [i0, k0 + d - 1] : null;
+        const x0 = i0 * C, z0 = k0 * C, x1 = (i0 + w) * C, z1 = (k0 + d) * C;
+        const door = [[x0 + C / 2, z0, 0, -1], [x1 - C / 2, z1, 0, 1], [x0, z0 + C / 2, -1, 0], [x1, z1 - C / 2, 1, 0]][doorSide];
+        houses.push({ x0, z0, x1, z1, y: l0 * H, out: [door[0] + door[2] * 1.6, door[1] + door[3] * 1.6], in: [door[0] - door[2] * 1.6, door[1] - door[3] * 1.6] });
         for (let s2 = 0; s2 < stories; s2++) {
           const l = l0 + s2;
           for (let a = 0; a < w; a++) for (let b = 0; b < d; b++) {
@@ -117,7 +120,7 @@ export function createPois(scene) {
     building.bake();
     return spots;
   }
-  return { build, spots };
+  return { build, spots, houses };
 }
 
 function holes(list) { const t = Array(9).fill(1); for (const i of list) t[i] = 0; return t; }
