@@ -36,7 +36,7 @@ const rig = new CameraRig(camera);
 const loadout = loadLoadout();
 const audio = createAudio();
 
-const hud = createHud(document.body, { onExit: () => toLobby() });
+const hud = createHud(document.body, { onExit: () => toLobby(), onSound: (n) => audio.play(n) });
 const match = createMatch({
   scene, rig, fx, building, pois, loadout,
   events: {
@@ -46,7 +46,8 @@ const match = createMatch({
     over: (r) => { recordMatch(r); hud.over(r); audio.play(r.victory ? 'victory' : 'eliminated'); },
     sound: (name, ch) => audio.play(name, ch === match.player ? null : ch.pos),
     jumped: () => hud.jumped(),
-    map: () => hud.toggleMap(),
+    panel: (p) => setPanel(p),
+    mark: (pt) => hud.mark(pt),
   },
 });
 const look = { yaw: 0, pitch: -0.15, emote: null };
@@ -72,13 +73,23 @@ function toLobby() {
   ui.show('lobby');
 }
 
+const live = () => match.state === 'bus' || match.state === 'play';
+// Map / inventory panels free the mouse while the match keeps running. The same key (or Esc) closes them.
+function setPanel(p) {
+  if (p && hud.panel === p) p = null;
+  if (!p && !hud.panel) return;
+  hud.setPanel(p);
+  if (p) { document.exitPointerLock?.(); return; }
+  input.lock(canvas);
+  // the lock can be refused (Esc is not a user gesture): fall back to the pause menu, whose Resume click locks
+  setTimeout(() => { if (!hud.panel && !input.locked && ui.screen === 'match' && live()) ui.show('pause'); }, 400);
+}
 // Esc (lost pointer lock) mid-match pauses; getting the lock back resumes
 document.addEventListener('pointerlockchange', () => {
-  const live = match.state === 'bus' || match.state === 'play';
-  if (!document.pointerLockElement && ui.screen === 'match' && live) ui.show('pause');
+  if (!document.pointerLockElement && ui.screen === 'match' && live() && !hud.panel) ui.show('pause');
   else if (document.pointerLockElement && ui.screen === 'pause') { input.reset(); ui.show('match'); }
 });
-canvas.addEventListener('click', () => { if (ui.screen === 'match') input.lock(canvas); });
+canvas.addEventListener('click', () => { if (ui.screen === 'match' && !hud.panel) input.lock(canvas); });
 // Ctrl is crouch, so Ctrl+W is one slip away: ask before closing mid-match
 addEventListener('beforeunload', (e) => { if (match.state === 'bus' || match.state === 'play') e.preventDefault(); });
 

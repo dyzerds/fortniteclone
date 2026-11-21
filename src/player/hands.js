@@ -86,7 +86,9 @@ export class Hands {
       else if (cur.kind === 'heal') this.tickHeal(it, dt, cur);
       else this.tickGun(it, dt, cur);
     }
-    this.ads = this.mode === 'combat' && it.altHeld && inv.current?.kind === 'weapon';
+    const cur = inv.current;
+    // reloading a scoped weapon drops you out of the scope
+    this.ads = this.mode === 'combat' && it.altHeld && cur?.kind === 'weapon' && !(this.reloadT > 0 && WEAPONS[cur.cls].scope);
     ch.speedMul = this.useT > 0 ? 0.6 : 1;
   }
 

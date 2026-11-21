@@ -25,7 +25,9 @@ Defaults. Every key can be rebound in **Settings → Keybinds**.
 | Switch material | T |
 | Reload / rotate piece | R |
 | Interact (pick up, open chests) | E |
-| Map | M |
+| Map (mouse is freed: left click places a marker, right click removes it) | M |
+| Inventory (drag to reorder, drag off the panel or use Drop to drop) | Tab |
+| Place marker where you aim | Middle mouse |
 | Emote | B (press again for the next one) |
 | Pause | Esc |
 

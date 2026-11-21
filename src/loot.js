@@ -186,6 +186,7 @@ export function createLoot(scene, fx) {
       const auto = !ch.isBot && settings.autoPickup === 'On' && ch.hands.inv.slots.includes(null);
       for (let i = ground.length - 1; i >= 0; i--) {
         const e = ground[i];
+        if (e.keep === ch) { if (e.t >= 1 && e.pos.distanceToSquared(ch.pos) > 9) e.keep = null; continue; } // just dropped by ch
         if ((e.item && !(auto && e.item.kind === 'weapon')) || e.t < 1 || e.pos.distanceToSquared(ch.pos) > 2.2) continue;
         take(e, ch.hands);
       }

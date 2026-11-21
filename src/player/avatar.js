@@ -195,13 +195,23 @@ function makeClips() {
     LeftLowerArm: [[0, -50, 0, 0]], RightLowerArm: [[0, -50, 0, 0]],
     pos: cyc(0.9, 8, (p) => [0, -0.34 + Math.abs(S(p, 0.03)), 0]),
   }));
-  L.push(clip('jump', 0.6, {
-    Spine: [[0, 6, 0, 0]], LeftUpperLeg: [[0, -55, 0, 0]], LeftLowerLeg: [[0, 80, 0, 0]], RightUpperLeg: [[0, -10, 0, 0]], RightLowerLeg: [[0, 40, 0, 0]],
-    LeftUpperArm: [[0, -40, 0, 35]], RightUpperArm: [[0, 20, 0, -35]], LeftLowerArm: [[0, -40, 0, 0]], RightLowerArm: [[0, -40, 0, 0]],
+  // jump: push off, then tuck both knees (one higher). Played once and held at the tuck.
+  L.push(clip('jump', 0.32, {
+    Spine: [[0, -4, 0, 0], [0.32, 8, 0, 0]], Chest: [[0, 0, 0, 0], [0.32, 4, 0, 0]],
+    LeftUpperLeg: [[0, -15, 0, 2], [0.18, -62, 0, 4], [0.32, -72, 0, 4]], LeftLowerLeg: [[0, 15, 0, 0], [0.18, 85, 0, 0], [0.32, 100, 0, 0]],
+    RightUpperLeg: [[0, 10, 0, -2], [0.18, -25, 0, -4], [0.32, -38, 0, -4]], RightLowerLeg: [[0, 10, 0, 0], [0.18, 55, 0, 0], [0.32, 75, 0, 0]],
+    LeftFoot: [[0, 20, 0, 0], [0.32, -15, 0, 0]], RightFoot: [[0, 25, 0, 0], [0.32, -10, 0, 0]],
+    LeftUpperArm: [[0, 25, 0, 14], [0.32, -30, 0, 28]], RightUpperArm: [[0, 25, 0, -14], [0.32, 12, 0, -30]],
+    LeftLowerArm: [[0, -30, 0, 0], [0.32, -55, 0, 0]], RightLowerArm: [[0, -30, 0, 0], [0.32, -45, 0, 0]],
   }));
-  L.push(clip('fall', 1, {
-    LeftUpperLeg: cyc(1, 4, (p) => [-30 + S(p, 8), 0, 5]), LeftLowerLeg: [[0, 50, 0, 0]], RightUpperLeg: cyc(1, 4, (p) => [-5 - S(p, 8), 0, -5]), RightLowerLeg: [[0, 25, 0, 0]],
-    LeftUpperArm: cyc(1, 4, (p) => [0, 0, 70 + S(p, 10)]), RightUpperArm: cyc(1, 4, (p) => [0, 0, -70 - S(p, 10)]), LeftLowerArm: [[0, -20, 0, 0]], RightLowerArm: [[0, -20, 0, 0]],
+  // fall: legs reach down for the ground, arms out a little for balance
+  L.push(clip('fall', 1.2, {
+    Spine: [[0, 3, 0, 0]],
+    LeftUpperLeg: cyc(1.2, 4, (p) => [-34 + S(p, 4), 0, 4]), LeftLowerLeg: cyc(1.2, 4, (p) => [48 + S(p, 5), 0, 0]),
+    RightUpperLeg: cyc(1.2, 4, (p) => [-12 - S(p, 4), 0, -4]), RightLowerLeg: cyc(1.2, 4, (p) => [28 - S(p, 5), 0, 0]),
+    LeftFoot: [[0, -8, 0, 0]], RightFoot: [[0, 4, 0, 0]],
+    LeftUpperArm: cyc(1.2, 4, (p) => [-12, 0, 38 + S(p, 5)]), RightUpperArm: cyc(1.2, 4, (p) => [-4, 0, -38 - S(p, 5)]),
+    LeftLowerArm: [[0, -35, 0, 0]], RightLowerArm: [[0, -35, 0, 0]],
   }));
   L.push(clip('slide', 1, {
     Spine: [[0, -28, 0, 0]], Head: [[0, 25, 0, 0]],
@@ -226,7 +236,7 @@ function makeClips() {
     Hips: [[0, 55, 0, 0]], Head: [[0, -45, 0, 0]],
     LeftUpperArm: cyc(1.2, 8, (p) => [-90 - S(p, 70), 0, 20]), RightUpperArm: cyc(1.2, 8, (p) => [-90 + S(p, 70), 0, -20]),
     LeftUpperLeg: cyc(1.2, 8, (p) => [S(p, 20, 0.25), 0, 0]), RightUpperLeg: cyc(1.2, 8, (p) => [-S(p, 20, 0.25), 0, 0]),
-    pos: [[0, 0, -0.4, 0]],
+    pos: [[0, 0, 0, 0]], // head just above the surface at the float depth (feet = waterLevel - 1.25)
   }));
   L.push(clip('dead', 1, {
     Hips: [[0, -88, 0, 0]], pos: [[0, 0, -0.8, -0.2]],
@@ -313,7 +323,12 @@ export class Avatar {
     this.mixer = new THREE.AnimationMixer(this.mesh);
     this.actions = {};
     for (const [k, c] of Object.entries(CLIPS)) this.actions[k] = this.mixer.clipAction(c);
-    this.state = '';
+    this.actions.jump.setLoop(THREE.LoopOnce); this.actions.jump.clampWhenFinished = true;
+    // The mixer skips writing a bone whose clip value did not change since last frame, so procedural
+    // offsets (twist, aim, swing) would pile up frame after frame. Keep the mixer's pose and restore it first.
+    this.list = list; this.saved = list.map((b) => b.quaternion.clone()); this.savedHips = this.bones.Hips.position.clone();
+    this.land = 0;
+    this.state = ''; this.w = new Map(); this.fade = 0.15;
     this.play('idle');
     this.upper = null; this.upperW = 0;
     this.swingT = -1;
@@ -326,21 +341,50 @@ export class Avatar {
     this.mesh.geometry = buildBody(byId('outfit', outfitId), backblingId);
   }
 
+  // Weights are blended by hand so they always sum to 1: switching again mid-fade never pops.
   play(name, fade = 0.15, timeScale = 1) {
     const a = this.actions[name];
     a.timeScale = timeScale;
     if (this.state === name) return;
-    const prev = this.actions[this.state];
-    a.reset().play();
-    if (prev) a.crossFadeFrom(prev, fade, false);
-    this.state = name;
+    if (!this.w.has(name)) { a.reset().play(); this.w.set(name, 0); }
+    else if (a.loop === THREE.LoopOnce) a.reset().play(); // one-shots restart
+    this.state = name; this.fade = Math.max(0.01, fade);
+  }
+
+  blend(dt) {
+    const w = this.w;
+    let rest = 0;
+    for (const [k, v] of w) if (k !== this.state) rest += v;
+    const t = rest > 0 ? Math.min(1, w.get(this.state) + dt / this.fade) : 1, scale = rest > 0 ? (1 - t) / rest : 0;
+    for (const [k, v] of w) {
+      const nv = k === this.state ? t : v * scale;
+      if (k !== this.state && nv < 0.002) { this.actions[k].stop(); w.delete(k); continue; }
+      w.set(k, nv); this.actions[k].setEffectiveWeight(nv);
+    }
   }
 
   swing() { this.swingT = 0; }
 
   update(dt) {
+    const list = this.list, saved = this.saved;
+    for (let i = 0; i < list.length; i++) list[i].quaternion.copy(saved[i]);
+    this.bones.Hips.position.copy(this.savedHips);
+    this.blend(dt);
     this.mixer.update(dt);
+    for (let i = 0; i < list.length; i++) saved[i].copy(list[i].quaternion);
+    this.savedHips.copy(this.bones.Hips.position);
     const b = this.bones;
+    // landing: knees give for a moment
+    if (this.land > 0) {
+      const k = this.land;
+      b.Hips.position.y -= 0.1 * k;
+      for (const s of ['Left', 'Right']) {
+        b[`${s}UpperLeg`].quaternion.multiply(_q.setFromEuler(_e.set(-30 * k * D, 0, 0)));
+        b[`${s}LowerLeg`].quaternion.multiply(_q.setFromEuler(_e.set(55 * k * D, 0, 0)));
+        b[`${s}Foot`].quaternion.multiply(_q.setFromEuler(_e.set(-25 * k * D, 0, 0)));
+      }
+      b.Spine.quaternion.multiply(_q.setFromEuler(_e.set(10 * k * D, 0, 0)));
+    }
     // lower/upper body twist for strafing: hips turn toward movement, chest stays on aim
     if (this.twist) {
       b.Hips.quaternion.premultiply(_q.setFromEuler(_e.set(0, this.twist, 0)));
@@ -349,9 +393,10 @@ export class Avatar {
     const target = this.upper ? POSES[this.upper] : null;
     this.upperW = Math.min(1, Math.max(0, this.upperW + (target ? dt : -dt) * 8));
     if (target && this.upperW > 0) for (const k in target) b[k].quaternion.slerp(target[k], this.upperW);
-    if (this.upper === 'rifle' || this.upper === 'pistol') {
-      b.Chest.quaternion.multiply(_q.setFromEuler(_e.set(-this.aimPitch * 0.75, 0, 0)));
-      b.Head.quaternion.multiply(_q.setFromEuler(_e.set(-this.aimPitch * 0.25, 0, 0)));
+    const gun = this.upper === 'rifle' || this.upper === 'pistol';
+    if (this.upper) {
+      b.Chest.quaternion.multiply(_q.setFromEuler(_e.set(-this.aimPitch * (gun ? 0.75 : 0.3), 0, 0)));
+      b.Head.quaternion.multiply(_q.setFromEuler(_e.set(-this.aimPitch * (gun ? 0.25 : 0.35), 0, 0)));
     }
     if (this.swingT >= 0) {
       this.swingT += dt;

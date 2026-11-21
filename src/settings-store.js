@@ -7,7 +7,7 @@ export const KEY_ACTIONS = [
   ['wall', 'Build Wall', 'KeyQ'], ['floor', 'Build Floor', 'KeyX'], ['ramp', 'Build Ramp', 'KeyC'], ['cone', 'Build Cone', 'KeyV'],
   ['edit', 'Edit', 'KeyF'], ['material', 'Switch Material', 'KeyT'],
   ['pickaxe', 'Harvesting Tool', 'Digit1'], ['slot1', 'Slot 1', 'Digit2'], ['slot2', 'Slot 2', 'Digit3'], ['slot3', 'Slot 3', 'Digit4'],
-  ['slot4', 'Slot 4', 'Digit5'], ['slot5', 'Slot 5', 'Digit6'], ['map', 'Map', 'KeyM'], ['emote', 'Emote', 'KeyB'],
+  ['slot4', 'Slot 4', 'Digit5'], ['slot5', 'Slot 5', 'Digit6'], ['map', 'Map', 'KeyM'], ['inventory', 'Inventory', 'Tab'], ['marker', 'Place Marker', 'Mouse1'], ['emote', 'Emote', 'KeyB'],
 ];
 
 // type: 'choice' (options) | 'range' (min,max,step) ; tab: game | video | audio

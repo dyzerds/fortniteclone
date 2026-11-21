@@ -33,6 +33,7 @@ export class Character {
     this.health = PLAYER.maxHealth; this.shield = 0; this.alive = true;
     this.kills = 0; this.airTop = 0; this.speedMul = 1; this.ads = false;
     this.mantle = null; this.landT = 0; this.lastHurt = -99; this.moveSpeed = 0;
+    this.airT = 0; this.jumped = false;
     this.avatar = new Avatar(outfit, backbling);
     scene.add(this.avatar.root);
     this.body = world.createRigidBody(R.RigidBodyDesc.kinematicPositionBased());
@@ -59,7 +60,7 @@ export class Character {
   }
 
   teleport(x, y, z) {
-    this.pos.set(x, y, z); this.vel.set(0, 0, 0);
+    this.pos.set(x, y, z); this.vel.set(0, 0, 0); this.jumped = false; this.airT = 0;
     this.body.setTranslation(this.pos, true);
     this.body.setNextKinematicTranslation(this.pos);
     this.airTop = y;
@@ -97,7 +98,7 @@ export class Character {
         this.vel.x = damp(this.vel.x, gx, 1.5, dt); this.vel.z = damp(this.vel.z, gz, 1.5, dt);
       }
       const landed = this.applyMove(dt);
-      if (landed || this.swimming) { this.mode = 'ground'; this.airTop = this.pos.y; this.landT = 0.25; }
+      if (landed || this.swimming) { this.mode = 'ground'; this.airTop = this.pos.y; this.landT = 0.25; this.vel.y = 0; }
       return;
     }
 
@@ -122,7 +123,8 @@ export class Character {
       let nv = vl - MOVE.slideFriction * dt + clamp(slope, -1, 1) * MOVE.slideSlopeAccel * dt;
       nv = Math.min(nv, 16);
       this.vel.x = dx * nv + wx * dt * 3; this.vel.z = dz * nv + wz * dt * 3;
-      if (nv < MOVE.slideMin || !inp.crouch || !this.grounded) this.sliding = false;
+      // airT, not grounded: the capsule shrink and small bumps unground us for a tick or two
+      if (nv < MOVE.slideMin || !inp.crouch || this.airT > 0.15) this.sliding = false;
     } else {
       let speed = this.swimming ? MOVE.swim : this.crouching ? MOVE.crouch : this.sprinting ? MOVE.sprint : MOVE.jog;
       if (inp.ads) speed *= 0.65;
@@ -138,11 +140,13 @@ export class Character {
       this.vel.y = damp(this.vel.y, (WORLD.waterLevel - 1.25 - this.pos.y) * 4, 6, dt);
       if (inp.jump && this.pos.y > WORLD.waterLevel - 1.5) this.vel.y = 6;
     } else if (this.grounded) {
-      this.vel.y = Math.min(this.vel.y, 0) - 1; // stick to slopes
+      // no downward speed while grounded: snap-to-ground follows slopes down, and any downward push
+      // gets projected along the slope by the character controller (dragging you downhill, stalling you uphill)
+      this.vel.y = 0;
       if (inp.jump) {
         if (this.crouching && !this.sliding) { this.setHeight(MOVE.height); this.crouching = false; }
         this.vel.y = Math.sqrt(2 * MOVE.gravity * MOVE.jumpHeight);
-        this.sliding = false; this.grounded = false;
+        this.sliding = false; this.grounded = false; this.jumped = true;
         this.onSound?.('jump');
       }
     } else {
@@ -154,11 +158,13 @@ export class Character {
 
     this.applyMove(dt);
     if (!this.grounded) this.airTop = Math.max(this.airTop, this.pos.y);
+    this.airT = this.grounded || this.swimming ? 0 : this.airT + dt;
     if (this.grounded && !wasGrounded) {
       const drop = this.airTop - this.pos.y;
       if (drop > MOVE.fallSafe && !this.swimming) this.onFallDamage?.((drop - MOVE.fallSafe) * MOVE.fallDmgPerM);
-      this.landT = 0.18;
+      if (drop > 0.5 || this.jumped) this.landT = 0.2;
       if (drop > 0.8) this.onSound?.('land');
+      this.jumped = false;
     }
     if (this.grounded || this.swimming) this.airTop = this.pos.y;
     this.landT = Math.max(0, this.landT - dt);
@@ -171,10 +177,12 @@ export class Character {
     const m = c.computedMovement();
     this.grounded = c.computedGrounded();
     if (this.vel.y > 0 && m.y < want.y * 0.5) this.vel.y = 0; // bonk ceiling
-    if (dt > 0) {
-      // lose velocity into walls so we don't keep pushing
-      if (Math.abs(m.x) < Math.abs(want.x) * 0.5) this.vel.x = m.x / dt;
-      if (Math.abs(m.z) < Math.abs(want.z) * 0.5) this.vel.z = m.z / dt;
+    // lose the speed that pushes into walls (not into walkable slopes) so we don't keep grinding on them
+    for (let i = c.numComputedCollisions(); i-- > 0;) {
+      const n = c.computedCollision(i)?.normal1;
+      if (!n || Math.abs(n.y) > 0.6) continue;
+      const into = this.vel.x * n.x + this.vel.z * n.z, h = n.x * n.x + n.z * n.z;
+      if (into < 0 && h > 1e-6) { this.vel.x -= into * n.x / h; this.vel.z -= into * n.z / h; }
     }
     this.pos.x += m.x; this.pos.y += m.y; this.pos.z += m.z;
     // never fall through the terrain (fast skydive)
@@ -211,7 +219,7 @@ export class Character {
     const up = Math.min(1, t * 1.6), fw = Math.max(0, (t - 0.4) / 0.6);
     this.pos.set(m.from.x + (m.to.x - m.from.x) * fw, m.from.y + (m.to.y - m.from.y) * up, m.from.z + (m.to.z - m.from.z) * fw);
     this.body.setNextKinematicTranslation(this.pos);
-    if (t >= 1) { this.mode = 'ground'; this.grounded = true; this.airTop = this.pos.y; }
+    if (t >= 1) { this.mode = 'ground'; this.grounded = true; this.airTop = this.pos.y; this.jumped = false; this.vel.y = 0; }
   }
 
   // visual update (every render frame)
@@ -222,14 +230,17 @@ export class Character {
     a.root.rotation.y = this.yaw + Math.PI;
     const hs = Math.hypot(this.vel.x, this.vel.z);
     this.moveSpeed = hs;
-    let st = 'idle', ts = 1;
+    let st = 'idle', ts = 1, fade = 0.15;
     a.twist = 0;
+    a.land = this.grounded && this.mode === 'ground' ? Math.sin(Math.min(1, this.landT / 0.2) * Math.PI) * 0.8 : 0;
+    // short hops off bumps and ramps edges stay in the run cycle; real jumps and drops use jump/fall
+    const air = !this.grounded && !this.swimming && this.mode === 'ground' && (this.jumped || this.airT > 0.18);
     if (this.mode === 'skydive') st = 'skydive';
     else if (this.mode === 'glide') st = 'glide';
     else if (this.mode === 'mantle') st = 'jump';
     else if (this.swimming) st = 'swim';
     else if (this.sliding) st = 'slide';
-    else if (!this.grounded && this.landT <= 0) st = this.vel.y > 0 ? 'jump' : 'fall';
+    else if (air) { st = this.jumped && this.vel.y > 1 ? 'jump' : 'fall'; fade = st === 'fall' && a.state === 'jump' ? 0.3 : 0.12; }
     else if (this.crouching) st = hs > 0.5 ? 'crouchWalk' : 'crouch';
     else if (hs > 0.5) {
       st = this.sprinting ? 'sprint' : 'jog';
@@ -238,10 +249,10 @@ export class Character {
       let rel = angleDiff(this.yaw, travel);
       const back = Math.abs(rel) > Math.PI / 2 + 0.2;
       if (back) { rel = angleDiff(Math.PI, rel); ts = -1; }
-      a.twist = clamp(rel, -1, 1) * 0.8;
+      a.twist = clamp(rel, -1, 1) * 0.5; // legs lean into strafes; the chest stays on the aim
       ts *= hs / (this.sprinting ? MOVE.sprint : MOVE.jog);
     } else if (emote) st = `emote_${emote}`;
-    a.play(st, 0.15, ts);
+    a.play(st, fade, ts);
     a.aimPitch = this.pitch;
     a.update(dt);
   }
@@ -261,6 +272,7 @@ export class CameraRig {
     this.dist = CAMERA.dist; this.fov = CAMERA.fov; this.baseFov = CAMERA.fov;
     this.aim = new THREE.Vector3(); this.dir = new THREE.Vector3();
     this.shake = 0; this.orbitYaw = 0; this.freeOrbit = false;
+    this.scopeT = 0; this.scoped = false; // scoped: zoomed all the way into a scope (first person, overlay on)
   }
 
   update(ch, dt, { ads = false, scope = false, extraDist = 0 } = {}) {
@@ -269,8 +281,10 @@ export class CameraRig {
     const dir = this.dir.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
     const rx = Math.cos(yaw), rz = -Math.sin(yaw);
     const air = ch.mode === 'skydive' || ch.mode === 'glide' || ch.mode === 'bus';
-    const wantDist = (scope ? 0.3 : ads ? CAMERA.adsDist : CAMERA.dist) + (air ? 4 + extraDist : 0);
-    this.dist = damp(this.dist, wantDist, 12, dt);
+    this.scopeT = scope ? this.scopeT + dt : 0;
+    this.scoped = this.scopeT > 0.12;
+    const wantDist = (scope ? 0 : ads ? CAMERA.adsDist : CAMERA.dist) + (air ? 4 + extraDist : 0);
+    this.dist = this.scoped ? 0 : damp(this.dist, wantDist, 12, dt);
     this.fov = damp(this.fov, scope ? CAMERA.scopeFov : ads ? this.baseFov * (CAMERA.adsFov / CAMERA.fov) : this.baseFov, 14, dt);
     if (Math.abs(cam.fov - this.fov) > 0.01) { cam.fov = this.fov; cam.updateProjectionMatrix(); }
     const sh = air ? 0 : CAMERA.shoulder * (scope ? 0 : 1);
@@ -279,7 +293,7 @@ export class CameraRig {
     // spring arm: pull in when something is between pivot and camera
     const back = { x: -dir.x, y: -dir.y, z: -dir.z };
     const hit = raycast({ x: px, y: py, z: pz }, back, this.dist + 0.3, ch.collider, (c) => !c.isSensor());
-    const d = hit ? Math.max(0.2, hit.dist - 0.3) : this.dist;
+    const d = this.scoped ? 0 : hit ? Math.max(0.2, hit.dist - 0.3) : this.dist; // scoped: eye at the head (body is hidden)
     cam.position.set(px - dir.x * d, py - dir.y * d, pz - dir.z * d);
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt * 3);

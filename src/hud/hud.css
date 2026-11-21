@@ -91,9 +91,11 @@
 .xhair[data-mode="ring"] .ring { display: block; background: none; border: 2px solid #fff; border-radius: 50%;
   width: calc(var(--s) * 2); height: calc(var(--s) * 2); left: calc(-1 * var(--s) - 2px); top: calc(-1 * var(--s) - 2px); }
 .scoped .xhair { display: none; }
-.scope { position: absolute; inset: 0; display: none;
-  background: radial-gradient(circle at 50% 50%, transparent 0 33vh, #04070f calc(33vh + 2px)),
-    linear-gradient(#04070f, #04070f) 50% 50% / 2px 66vh no-repeat, linear-gradient(#04070f, #04070f) 50% 50% / 66vh 2px no-repeat; }
+.scope { position: absolute; inset: 0; display: none; overflow: hidden; }
+.scope .lens { position: absolute; left: 50%; top: 50%; width: 92vh; height: 92vh; transform: translate(-50%, -50%); border-radius: 50%;
+  box-shadow: 0 0 0 100vmax #05070c, inset 0 0 5vh 1.5vh rgba(5, 7, 12, 0.9), inset 0 0 0 0.6vh #05070c; animation: scopein 0.12s ease-out; }
+.scope svg { width: 100%; height: 100%; display: block; stroke: #05070c; fill: none; }
+@keyframes scopein { from { transform: translate(-50%, -50%) scale(0.9); opacity: 0.4; } }
 .scoped .scope { display: block; }
 .hitmark { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; transform: translate(-50%, -50%) rotate(45deg); opacity: 0; }
 .hitmark::before, .hitmark::after { content: ''; position: absolute; background: #fff; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
@@ -132,9 +134,59 @@
 
 /* full map */
 .bigmap { position: absolute; inset: 0; display: none; place-items: center; background: rgba(6, 14, 36, 0.72); }
-.map-open .bigmap { display: grid; }
-.bigmap canvas { width: min(84vh, 760px); height: min(84vh, 760px); border-radius: 14px; box-shadow: 0 0 0 4px #fff, 0 12px 40px rgba(0, 0, 0, 0.5); }
+.map-open .bigmap { display: grid; pointer-events: auto; }
+.bigmap canvas { width: min(84vh, 760px); height: min(84vh, 760px); border-radius: 14px; box-shadow: 0 0 0 4px #fff, 0 12px 40px rgba(0, 0, 0, 0.5); cursor: crosshair; }
 .bigmap-hint { position: absolute; bottom: 3vh; font-size: 15px; color: #cfe0ff; }
+
+/* map marker over the world */
+.wmark { position: absolute; left: 0; top: 0; display: none; flex-direction: column; align-items: center; gap: 2px; }
+.wmark.on { display: flex; }
+.wmark svg { width: 22px; height: 30px; fill: var(--gold); stroke: var(--ink); stroke-width: 1.6; filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.4)); }
+.wmark svg circle { fill: var(--ink); stroke: none; }
+.wmark b { order: -1; font-size: 15px; color: var(--gold); }
+
+/* inventory */
+.inv { position: absolute; inset: 0; display: none; place-items: center; pointer-events: auto;
+  background: radial-gradient(circle at 50% 45%, rgba(20, 44, 110, 0.72), rgba(6, 12, 32, 0.88)); }
+.inv-open .inv { display: grid; animation: fadein 0.12s; }
+.inv-open .xhair, .inv-open .prompt, .inv-open .wmark { display: none; }
+.inv-card { display: flex; gap: 22px; align-items: stretch; }
+.inv-main { display: flex; flex-direction: column; gap: 8px; }
+.inv h2 { margin: 0 0 4px; font: 400 40px 'Lilita One', sans-serif; letter-spacing: 1px; text-transform: uppercase; }
+.inv-sec { margin-top: 6px; font-size: 13px; text-transform: uppercase; letter-spacing: 1px; color: #9fb7e6; }
+.inv-row { display: flex; gap: 8px; }
+.inv .it { position: relative; width: 84px; height: 84px; border-radius: 10px; cursor: pointer; background: var(--panel);
+  box-shadow: inset 0 0 0 2px var(--line); transition: transform 0.08s; }
+.inv .it:hover { transform: translateY(-2px); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.5); }
+.inv .it img { width: 100%; height: 100%; display: block; }
+.inv .it b { position: absolute; right: 6px; bottom: 3px; font-size: 18px; }
+.inv .it.empty { cursor: default; opacity: 0.55; }
+.inv .it.empty:hover { transform: none; }
+.inv .it.eq::after { content: 'EQUIPPED'; position: absolute; left: 0; right: 0; top: -9px; text-align: center; font-size: 10px; letter-spacing: 0.5px; color: var(--ink);
+  text-shadow: none; background: var(--gold); border-radius: 4px; width: 64px; margin: 0 auto; line-height: 14px; }
+.inv .it.sel { box-shadow: 0 0 0 3px #fff, 0 0 18px rgba(255, 255, 255, 0.35); }
+.inv .it[data-r="0"] { background: linear-gradient(160deg, #a7b0b9, #59626c); }
+.inv .it[data-r="1"] { background: linear-gradient(160deg, #66d84f, #2c7a20); }
+.inv .it[data-r="2"] { background: linear-gradient(160deg, #47a8ff, #1752ad); }
+.inv .it[data-r="3"] { background: linear-gradient(160deg, #c869ff, #6a22a4); }
+.inv .it[data-r="4"] { background: linear-gradient(160deg, #ffbb33, #b25e08); }
+.inv-hint { margin-top: 10px; font-size: 13px; color: #b9cbef; }
+.inv-info { width: 290px; padding: 16px 18px; border-radius: 12px; background: rgba(8, 18, 48, 0.75); box-shadow: inset 0 0 0 2px var(--line);
+  display: flex; flex-direction: column; border-top: 5px solid var(--r0); }
+.inv-info[data-r="1"] { border-top-color: var(--r1); } .inv-info[data-r="2"] { border-top-color: var(--r2); }
+.inv-info[data-r="3"] { border-top-color: var(--r3); } .inv-info[data-r="4"] { border-top-color: var(--r4); }
+.inv-tag { font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #a9bde6; }
+.inv-name { font: 400 26px 'Lilita One', sans-serif; line-height: 1.1; margin: 2px 0 6px; }
+.inv-big { width: 150px; height: 150px; align-self: center; }
+.inv-info p { margin: 4px 0 8px; font-size: 14px; color: #d4e1fb; min-height: 18px; }
+.inv-info dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0 0 12px; font-size: 14px; }
+.inv-info dt { color: #9fb3d8; } .inv-info dd { margin: 0; text-align: right; }
+.inv-btns { margin-top: auto; display: flex; gap: 8px; }
+.inv-btns button { flex: 1; font: 400 18px 'Lilita One', sans-serif; padding: 8px 0; border: 0; border-radius: 8px; cursor: pointer; text-transform: uppercase;
+  color: #3a2500; background: linear-gradient(#ffe97a, #ffc61a); box-shadow: 0 3px 0 #b7820a; }
+.inv-btns button[data-act^="drop"] { color: #fff; background: linear-gradient(#ff7b7b, #e23c3c); box-shadow: 0 3px 0 #8f1d1d; }
+.inv-btns button:hover { filter: brightness(1.08); }
+.inv-btns button:disabled { cursor: default; filter: grayscale(0.8) brightness(0.8); }
 
 /* results */
 .results { position: absolute; inset: 0; display: none; place-items: center; pointer-events: auto;

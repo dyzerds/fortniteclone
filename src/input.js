@@ -31,6 +31,7 @@ addEventListener('keydown', (e) => {
 });
 addEventListener('keyup', (e) => release(e.code));
 addEventListener('mousedown', (e) => {
+  if (e.button === 1) e.preventDefault(); // middle click: no autoscroll
   if (input.enabled && input.locked) press(`Mouse${e.button}`);
 });
 addEventListener('mouseup', (e) => release(`Mouse${e.button}`));

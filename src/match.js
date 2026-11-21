@@ -1,6 +1,6 @@
 // One match: sky barge drop, storm, characters and their hands, loot, bots, eliminations, victory/defeat.
 import * as THREE from 'three';
-import { MATCH, STORM, WORLD, POIS } from './config.js';
+import { MATCH, STORM, WORLD, POIS, WEAPONS } from './config.js';
 import { world } from './physics.js';
 import { getHeight, isLand, resetProps } from './world/terrain.js';
 import { Character, emptyInput } from './player/controller.js';
@@ -102,7 +102,10 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
     it.slot = input.pressed('pickaxe') ? 0 : [1, 2, 3, 4, 5].find((i) => input.pressed(`slot${i}`)) ?? -1;
     it.scroll = input.takeWheel();
     if (input.pressed('interact') && player.alive) loot.interact(hands);
-    if (input.pressed('map')) events.map?.();
+    if (input.pressed('map')) events.panel?.('map');
+    if (input.pressed('inventory')) events.panel?.('inv');
+    if (input.codePressed('Escape')) events.panel?.(null);
+    if (input.pressed('marker') && player.alive && rig.aim.distanceTo(rig.camera.position) < 600) events.mark?.(rig.aim); // not on the sky
     // emote: B cycles through the loadout's emotes; any action or leaving the ground stops it
     if (inp.mx || inp.mz || inp.jump || it.fire || it.alt || it.build || it.edit || it.slot >= 0 || player.mode !== 'ground' || !player.alive) emote = null;
     else if (input.pressed('emote')) { const l = player.cosmetics.emotes ?? []; emote = l[(l.indexOf(emote) + 1) % l.length] ?? null; }
@@ -215,6 +218,8 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
     if (state === 'idle') return;
     look.pitch -= hands.kick; hands.kick = 0;
     inp.yaw = look.yaw; inp.pitch = look.pitch;
+    // body and camera follow the aim every render frame, not only on physics ticks
+    if (player.alive) { player.yaw = look.yaw; player.pitch = look.pitch; }
     camPos.copy(rig.camera.position);
     for (const ch of chars) {
       const d2 = ch.pos.distanceToSquared(camPos);
@@ -237,7 +242,9 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
       if (bus.t >= bus.dur && state !== 'bus') barge.visible = false;
     }
     const cur = hands.inv.current;
-    rig.update(player, dt, { ads: hands.ads, scope: hands.ads && cur?.cls === 'sniper', extraDist: player.mode === 'bus' ? 14 : 0 });
+    rig.update(player, dt, { ads: hands.ads, scope: hands.ads && !!WEAPONS[cur?.cls]?.scope, extraDist: player.mode === 'bus' ? 14 : 0 });
+    // looking through a scope is first person: hide your own body and gun
+    if (rig.scoped) { player.avatar.root.visible = false; if (hands.held) hands.held.visible = false; }
     if (stormNow) wall.update(stormNow, time);
     loot.frame(dt, camPos);
     fx.update(dt);

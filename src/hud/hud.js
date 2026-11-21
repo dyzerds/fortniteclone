@@ -5,8 +5,8 @@ import '@fontsource/nunito/800.css';
 import '@fontsource/nunito/900.css';
 import './hud.css';
 import * as THREE from 'three';
-import { WEAPONS, RARITIES, CONSUMABLES, POIS, WORLD, PLAYER, BUILD_COST } from '../config.js';
-import { colors, heights } from '../world/terrain.js';
+import { WEAPONS, RARITIES, CONSUMABLES, POIS, WORLD, PLAYER, BUILD_COST, AMMO, MAT_CAP } from '../config.js';
+import { colors, heights, getHeight } from '../world/terrain.js';
 import { icon } from './icons.js';
 import { itemName, itemRarity } from '../loot.js';
 import { settings, keyLabel } from '../settings-store.js';
@@ -22,7 +22,11 @@ const SVG = {
 const MAT_KEYS = ['wood', 'brick', 'metal'], PIECE_KEYS = ['wall', 'floor', 'ramp', 'cone'];
 const CLS_SHORT = { ar: 'Assault Rifle', shotgun: 'Pump Shotgun', smg: 'Rapid SMG', pistol: 'Sidearm', sniper: 'Bolt Sniper', pickaxe: 'Harvesting Tool', fall: 'Fall', storm: 'Storm' };
 const fmtT = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-const _p = new THREE.Vector3();
+const _p = new THREE.Vector3(), _d = new THREE.Vector3(), _o = new THREE.Vector3();
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const PIN = '<svg viewBox="0 0 24 32"><path d="M12 1C6 1 2 5.4 2 11c0 7.5 10 20 10 20s10-12.5 10-20C22 5.4 18 1 12 1z"/><circle cx="12" cy="11" r="4"/></svg>';
+// icon key of an inventory entry ('pick' = the harvesting tool)
+const itemIcon = (it, p) => !it ? '' : it === 'pick' ? `pick:${p.cosmetics.pickaxe ?? 'pick'}` : it.kind === 'weapon' ? `w:${it.cls}:${it.rarity}:${wrapFor(p.cosmetics, it.cls)}` : `h:${it.id}`;
 
 // cache-aware DOM setters
 const setText = (el, v) => { v = String(v); if (el._t !== v) { el._t = v; el.textContent = v; } };
@@ -51,10 +55,16 @@ function mapImage(size) {
   return c;
 }
 
-export function createHud(root, { onExit } = {}) {
+export function createHud(root, { onExit, onSound } = {}) {
   const el = document.createElement('div');
   el.className = 'hud';
   el.innerHTML = `
+    <div class="scope"><div class="lens"><svg viewBox="-100 -100 200 200">
+      <path d="M-100 0H100M0 -100V100" stroke-width="0.45"/>
+      <path d="M-100 0H-42M42 0H100M0 -100V-42" stroke-width="3.2"/>
+      <path d="M-42 -2.6L-36 0L-42 2.6zM42 -2.6L36 0L42 2.6zM-2.6 -42L0 -36L2.6 -42z" stroke="none" fill="#05070c"/>
+      <path d="M-5 9H5M-3 18H3M-5 27H5M-3 36H3M-5 45H5" stroke-width="0.6"/>
+    </svg></div></div>
     <canvas class="compass" width="600" height="46"></canvas>
     <div class="mm"><canvas width="230" height="230"></canvas><div class="mm-name"></div></div>
     <div class="stats">
@@ -74,7 +84,6 @@ export function createHud(root, { onExit } = {}) {
       <div class="slots">${Array.from({ length: PLAYER.slots + 1 }, (_, i) => `<div class="slot" data-i="${i}"><kbd></kbd><img><b></b></div>`).join('')}</div>
     </div>
     <div class="xhair"><i></i><i></i><i></i><i></i><span class="dot"></span><span class="ring"></span></div>
-    <div class="scope"></div>
     <div class="hitmark"></div>
     <div class="usebar"><span></span><div class="track"><i></i></div></div>
     <div class="prompt"></div>
@@ -83,7 +92,9 @@ export function createHud(root, { onExit } = {}) {
     <div class="hurtdir"></div>
     <div class="lowhp"></div>
     <div class="dmg"></div>
-    <div class="bigmap"><canvas width="760" height="760"></canvas><div class="bigmap-hint">M to close</div></div>
+    <div class="wmark">${PIN}<b></b></div>
+    <div class="bigmap"><canvas width="760" height="760"></canvas><div class="bigmap-hint"></div></div>
+    <div class="inv"></div>
     <div class="results"><div class="res-card"><div class="res-place"></div><div class="res-title"></div><div class="res-sub"></div>
       <div class="res-stats"></div><button class="res-btn">Return to Lobby</button></div></div>`;
   root.appendChild(el);
@@ -96,12 +107,14 @@ export function createHud(root, { onExit } = {}) {
   const bars = { shield: $('.b-shield'), health: $('.b-health') };
   const slots = $$('.slot'), mats = $$('.mat'), bps = $$('.bp');
   const xh = $('.xhair'), hit = $('.hitmark'), dmgLayer = $('.dmg'), feed = $('.feed');
-  let hitT = 0, toastT = 0, cmsgT = 0, hurtT = 0, mapOpen = false, lastPhase = -1, lastShrink = false;
+  let hitT = 0, toastT = 0, cmsgT = 0, hurtT = 0, lastPhase = -1, lastShrink = false;
+  let panel = null, marker = null, M = null; // panel: 'map' | 'inv' | null ; marker: { x, y, z } ; M: the match, for panel clicks
   $('.res-btn').onclick = () => onExit?.();
 
   function keyLabels() {
     bps.forEach((b, i) => setText(b.querySelector('kbd'), keyLabel(settings.keys[PIECE_KEYS[i]])));
     slots.forEach((s, i) => setText(s.querySelector('kbd'), keyLabel(settings.keys[i ? `slot${i}` : 'pickaxe'])));
+    $('.bigmap-hint').innerHTML = `Left click: place marker · Right click: remove · <kbd>${keyLabel(settings.keys.map)}</kbd> close`;
   }
 
   function centerMsg(text, t = 3) { setText($('.cmsg'), text); cmsgT = t; }
@@ -144,19 +157,28 @@ export function createHud(root, { onExit } = {}) {
       $('.res-sub').textContent = r.victory ? 'Last one standing on the island' : `You placed ${r.place} of ${r.total}`;
       $('.res-stats').innerHTML = `<div><b>${r.kills}</b>Eliminations</div><div><b>${r.place}</b>Placement</div><div><b>+${r.xp}</b>XP</div>`;
       el.classList.add('show-results'); toggle(el, 'won', r.victory);
+      api.setPanel(null);
       document.exitPointerLock?.();
     },
     jumped() { centerMsg('', 0); },
-    toggleMap() { mapOpen = !mapOpen; toggle(el, 'map-open', mapOpen); },
-    reset() { el.classList.remove('show-results', 'won', 'map-open'); mapOpen = false; feed.innerHTML = ''; lastPhase = -1; keyLabels(); },
+    get panel() { return panel; },
+    setPanel(p) { panel = p; toggle(el, 'map-open', p === 'map'); toggle(el, 'inv-open', p === 'inv'); invSel = null; invSig = ''; },
+    // place a marker at a world point (null clears it)
+    mark(pt) {
+      marker = pt ? { x: clamp(pt.x, -half, half), y: pt.y, z: clamp(pt.z, -half, half) } : null;
+      onSound?.('click');
+    },
+    get marker() { return marker; },
+    reset() { api.setPanel(null); el.classList.remove('show-results', 'won'); marker = null; feed.innerHTML = ''; lastPhase = -1; keyLabels(); },
     show(on) { toggle(el, 'hidden', !on); },
   };
 
   // ---- per frame ----
   api.update = (dt, m, camera, rig) => {
     const p = m.player, h = p.hands, inv = h.inv, cur = inv.current;
+    M = m;
     hitT -= dt; toastT -= dt; cmsgT -= dt; hurtT -= dt;
-    toggle(hit, 'on', hitT > 0); toggle($('.toast'), 'on', toastT > 0); toggle($('.cmsg'), 'on', cmsgT > 0 || m.state === 'bus');
+    toggle(hit, 'on', hitT > 0); toggle($('.toast'), 'on', toastT > 0); toggle($('.cmsg'), 'on', cmsgT > 0 || p.mode === 'bus');
     setStyle($('.hurtdir'), 'opacity', String(Math.max(0, Math.min(1, hurtT))));
     setStyle($('.lowhp'), 'opacity', String(p.alive ? Math.max(0, (35 - p.health) / 35) * 0.8 : 0));
 
@@ -177,7 +199,7 @@ export function createHud(root, { onExit } = {}) {
       }
     }
     setText($('.v-alive'), m.alive); setText($('.v-kills'), p.kills);
-    if (m.state === 'bus') setText($('.cmsg'), m.bus.open ? `Press ${keyLabel(settings.keys.jump)} to jump` : 'Get ready to drop');
+    if (p.mode === 'bus') setText($('.cmsg'), m.bus.open ? `Press ${keyLabel(settings.keys.jump)} to jump` : 'Get ready to drop');
 
     // materials / builds / slots
     const building = h.mode !== 'combat';
@@ -186,7 +208,7 @@ export function createHud(root, { onExit } = {}) {
     bps.forEach((d, i) => toggle(d, 'sel', building && h.piece === PIECE_KEYS[i]));
     slots.forEach((d, i) => {
       const it = i ? inv.slots[i - 1] : 'pick';
-      const key = !it ? '' : it === 'pick' ? `pick:${p.cosmetics.pickaxe ?? 'pick'}` : it.kind === 'weapon' ? `w:${it.cls}:${it.rarity}:${wrapFor(p.cosmetics, it.cls)}` : `h:${it.id}`;
+      const key = itemIcon(it, p);
       if (d._key !== key) {
         d._key = key;
         const img = d.querySelector('img');
@@ -208,7 +230,7 @@ export function createHud(root, { onExit } = {}) {
     if (using) { setText($('.usebar span'), `${using.label} ${using.t.toFixed(1)}`); setStyle($('.usebar i'), 'width', `${(1 - using.t / using.max) * 100}%`); }
 
     // crosshair
-    const scoped = h.ads && cur?.cls === 'sniper';
+    const scoped = rig.scoped;
     toggle(el, 'scoped', scoped);
     const gun = cur?.kind === 'weapon' && !building;
     const px = gun ? Math.max(4, Math.tan(h.spread) / Math.tan(camera.fov * Math.PI / 360) * innerHeight / 2) : 0;
@@ -225,13 +247,30 @@ export function createHud(root, { onExit } = {}) {
       if (pr._h !== html) { pr._h = html; pr.innerHTML = html; }
     }
 
-    drawCompass(p.yaw);
+    // world marker: pin over the spot with the distance, kept on screen while in front of the camera
+    const wm = $('.wmark');
+    let wmOn = false;
+    if (marker && !scoped && panel !== 'map') {
+      _p.set(marker.x, marker.y + 1.2, marker.z);
+      camera.getWorldDirection(_d);
+      if (_o.subVectors(_p, camera.position).dot(_d) > 0) {
+        _p.project(camera);
+        const x = clamp((_p.x * 0.5 + 0.5) * innerWidth, 24, innerWidth - 24), y = clamp((-_p.y * 0.5 + 0.5) * innerHeight, 48, innerHeight - 24);
+        setStyle(wm, 'transform', `translate(${x.toFixed(0)}px, ${y.toFixed(0)}px) translate(-50%, -100%)`);
+        setText(wm.querySelector('b'), `${Math.round(Math.hypot(marker.x - p.pos.x, marker.z - p.pos.z))} m`);
+        wmOn = true;
+      }
+    }
+    toggle(wm, 'on', wmOn);
+
+    drawCompass(p);
     drawMinimap(m);
-    if (mapOpen) drawBigMap(m);
+    if (panel === 'map') drawBigMap(m);
+    if (panel === 'inv') renderInv(m);
   };
 
-  function drawCompass(yaw) {
-    const g = compass, W = 600, H = 46, deg = ((-yaw * 180 / Math.PI) % 360 + 360) % 360;
+  function drawCompass(p) {
+    const g = compass, W = 600, H = 46, deg = ((-p.yaw * 180 / Math.PI) % 360 + 360) % 360;
     g.clearRect(0, 0, W, H);
     const pxPerDeg = 4.2, names = { 0: 'N', 45: 'NE', 90: 'E', 135: 'SE', 180: 'S', 225: 'SW', 270: 'W', 315: 'NW' };
     g.textAlign = 'center'; g.lineWidth = 2;
@@ -247,6 +286,21 @@ export function createHud(root, { onExit } = {}) {
     g.globalAlpha = 1; g.shadowBlur = 0;
     g.fillStyle = '#ffd84a'; g.font = '18px "Lilita One"'; g.fillText(Math.round(deg) % 360, W / 2, 44);
     g.beginPath(); g.moveTo(W / 2 - 6, 0); g.lineTo(W / 2 + 6, 0); g.lineTo(W / 2, 7); g.fill();
+    if (marker) { // bearing to the marker (0 = north = -z, 90 = east = +x), pinned to the edge when outside the strip
+      const b = Math.atan2(marker.x - p.pos.x, -(marker.z - p.pos.z)) * 180 / Math.PI;
+      const rel = ((b - deg + 540) % 360) - 180;
+      pin(g, W / 2 + clamp(rel, -68, 68) * pxPerDeg, 22, 6);
+    }
+  }
+
+  // map pin with its tip at (x, y)
+  function pin(g, x, y, s) {
+    g.save(); g.translate(x, y);
+    g.beginPath(); g.moveTo(0, 0);
+    g.bezierCurveTo(-s * 0.3, -s * 0.7, -s, -s * 1.1, -s, -s * 1.8); g.arc(0, -s * 1.8, s, Math.PI, 0); g.bezierCurveTo(s, -s * 1.1, s * 0.3, -s * 0.7, 0, 0);
+    g.fillStyle = '#ffd84a'; g.strokeStyle = '#1b2a4a'; g.lineWidth = 2; g.fill(); g.stroke();
+    g.beginPath(); g.arc(0, -s * 1.8, s * 0.38, 0, Math.PI * 2); g.fillStyle = '#1b2a4a'; g.fill();
+    g.restore();
   }
 
   function stormOverlay(g, s, sx, sz, scale, ox, oy, W, H) {
@@ -282,6 +336,7 @@ export function createHud(root, { onExit } = {}) {
     g.drawImage(MAP, toMap(p.pos.x) - view / 2 * mpp, toMap(p.pos.z) - view / 2 * mpp, view * mpp, view * mpp, 0, 0, W, W);
     if (m.storm) stormOverlay(g, m.storm, p.pos.x, p.pos.z, scale, W / 2, W / 2, W, W);
     busLine(g, m, (x, z) => [W / 2 + (x - p.pos.x) * scale, W / 2 + (z - p.pos.z) * scale]);
+    if (marker) pin(g, clamp(W / 2 + (marker.x - p.pos.x) * scale, 8, W - 8), clamp(W / 2 + (marker.z - p.pos.z) * scale, 20, W - 2), 7);
     arrow(g, W / 2, W / 2, p.yaw, 8);
     const poi = POIS.find((q) => Math.hypot(q.x - p.pos.x, q.z - p.pos.z) < q.r);
     setText($('.mm-name'), poi?.name ?? '');
@@ -297,8 +352,138 @@ export function createHud(root, { onExit } = {}) {
       const [x, y] = map(q.x, q.z);
       g.lineWidth = 4; g.strokeStyle = 'rgba(10,25,60,0.85)'; g.strokeText(q.name.toUpperCase(), x, y); g.fillStyle = '#fff'; g.fillText(q.name.toUpperCase(), x, y);
     }
+    if (marker) {
+      const [x, y] = map(marker.x, marker.z);
+      pin(g, x, y, 11);
+      const t = `${Math.round(Math.hypot(marker.x - m.player.pos.x, marker.z - m.player.pos.z))} m`;
+      g.font = '16px "Lilita One"'; g.lineWidth = 4; g.strokeStyle = 'rgba(10,25,60,0.85)'; g.strokeText(t, x, y + 18); g.fillStyle = '#ffd84a'; g.fillText(t, x, y + 18);
+    }
     arrow(g, ...map(m.player.pos.x, m.player.pos.z), m.player.yaw, 10);
   }
+
+  // big map clicks: left places the marker (or removes it when clicked again), right removes it
+  const bigC = $('.bigmap canvas');
+  bigC.addEventListener('mousedown', (e) => {
+    const r = bigC.getBoundingClientRect();
+    const x = (e.clientX - r.left) / r.width * WORLD.size - half, z = (e.clientY - r.top) / r.height * WORLD.size - half;
+    if (e.button === 2 || (marker && Math.hypot(marker.x - x, marker.z - z) < WORLD.size * 0.02)) { if (marker) api.mark(null); }
+    else if (e.button === 0) api.mark({ x, y: Math.max(getHeight(x, z), WORLD.waterLevel), z });
+  });
+
+  // ---- inventory panel ----
+  // invSel: { t: 'slot', i } (0 = harvesting tool) | { t: 'mat' | 'ammo', k }
+  const invEl = $('.inv');
+  let invSel = null, invSig = '', dragFrom = -1;
+  const tile = (attrs, img, n, r, cls) => `<div class="it ${cls}" ${attrs} data-r="${r}">${img ? `<img draggable="false" src="${img}">` : ''}<b>${n}</b></div>`;
+  const row = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+
+  function invInfo(p, inv) {
+    const s = invSel;
+    if (s.t === 'slot') {
+      const it = s.i ? inv.slots[s.i - 1] : 'pick', eq = inv.sel === s.i;
+      const btns = `<button data-act="equip"${eq ? ' disabled' : ''}>${eq ? 'Equipped' : 'Equip'}</button>${s.i ? '<button data-act="drop">Drop</button>' : ''}`;
+      if (it === 'pick') return { name: 'Harvesting Tool', r: 0, tag: 'Tool', img: icon(itemIcon(it, p)), desc: 'Swing at trees, rocks and buildings to gather materials.', stats: '', btns };
+      if (it.kind === 'weapon') {
+        const w = WEAPONS[it.cls], dmg = w.pellets ? `${w.dmg[it.rarity]} × ${w.pellets}` : w.dmg[it.rarity];
+        return { name: itemName(it), r: it.rarity, tag: w.name, img: icon(itemIcon(it, p)), desc: w.scope ? 'Scoped. Hold aim to look through the scope.' : '',
+          stats: row('Damage', dmg) + row('Headshot', `×${w.head}`) + row('Fire rate', `${w.rate}/s`) + row('Magazine', `${it.mag} / ${w.mag}`)
+            + row('Reload', `${w.reload[it.rarity]} s`) + row('Ammo', `${AMMO[w.ammo].name} (${inv.ammo[w.ammo]})`), btns };
+      }
+      const c = CONSUMABLES[it.id];
+      return { name: c.name, r: c.rarity, tag: 'Consumable', img: icon(itemIcon(it, p)),
+        desc: c.heal ? `Restores ${c.heal} health, up to ${c.cap}.` : `Adds ${c.shield} shield, up to ${c.cap}.`,
+        stats: row('Use time', `${c.time} s`) + row('Stack', `${it.count} / ${c.stack}`), btns };
+    }
+    const mat = s.t === 'mat', n = (mat ? inv.mats : inv.ammo)[s.k], step = mat ? 30 : AMMO[s.k].pickup;
+    const btns = `<button data-act="drop"${n ? '' : ' disabled'}>Drop ${Math.min(step, n)}</button><button data-act="dropall"${n ? '' : ' disabled'}>Drop All</button>`;
+    if (mat) return { name: s.k[0].toUpperCase() + s.k.slice(1), r: 0, tag: 'Material', img: icon(`m:${s.k}`),
+      desc: { wood: 'Builds fast, weakest pieces.', brick: 'Middle ground between speed and strength.', metal: 'Builds slow, toughest pieces.' }[s.k],
+      stats: row('Owned', `${n} / ${MAT_CAP}`) + row('Per piece', BUILD_COST), btns };
+    const users = Object.values(WEAPONS).filter((w) => w.ammo === s.k).map((w) => w.name).join(', ');
+    return { name: AMMO[s.k].name, r: 0, tag: 'Ammo', img: icon(`a:${s.k}`), desc: `Used by: ${users}.`, stats: row('Owned', `${n} / ${AMMO[s.k].cap}`), btns };
+  }
+
+  function renderInv(m) {
+    const p = m.player, inv = p.hands.inv;
+    if (!invSel || (invSel.t === 'slot' && invSel.i && !inv.slots[invSel.i - 1])) invSel = { t: 'slot', i: inv.sel };
+    const sig = JSON.stringify([inv.slots, inv.ammo, inv.mats, inv.sel, invSel, p.alive]);
+    if (sig === invSig) return;
+    invSig = sig;
+    const items = Array.from({ length: PLAYER.slots + 1 }, (_, i) => {
+      const it = i ? inv.slots[i - 1] : 'pick', sel = invSel.t === 'slot' && invSel.i === i;
+      const cls = `${sel ? 'sel' : ''}${inv.sel === i ? ' eq' : ''}${it ? '' : ' empty'}`;
+      const n = it?.kind === 'heal' ? it.count : it?.kind === 'weapon' ? it.mag : '';
+      return tile(`data-slot="${i}"${i && it ? ' draggable="true"' : ''}`, it ? icon(itemIcon(it, p)) : '', n, it && it !== 'pick' ? itemRarity(it) : '', cls);
+    }).join('');
+    const mats = MAT_KEYS.map((k) => tile(`data-mat="${k}"`, icon(`m:${k}`), inv.mats[k], '', invSel.k === k ? 'sel' : '')).join('');
+    const ammo = Object.keys(AMMO).map((k) => tile(`data-ammo="${k}"`, icon(`a:${k}`), inv.ammo[k], '', invSel.k === k ? 'sel' : '')).join('');
+    const f = invInfo(p, inv);
+    invEl.innerHTML = `<div class="inv-card">
+      <div class="inv-main"><h2>Inventory</h2>
+        <div class="inv-sec">Weapons &amp; Items</div><div class="inv-row">${items}</div>
+        <div class="inv-sec">Materials</div><div class="inv-row">${mats}</div>
+        <div class="inv-sec">Ammo</div><div class="inv-row">${ammo}</div>
+        <div class="inv-hint">Drag items to reorder · drag off the panel to drop · <kbd>${keyLabel(settings.keys.inventory)}</kbd> or <kbd>ESC</kbd> close</div></div>
+      <div class="inv-info" data-r="${f.r}"><div class="inv-tag">${RARITIES[f.r].name} · ${f.tag}</div><div class="inv-name">${f.name}</div>
+        <img class="inv-big" draggable="false" src="${f.img}"><p>${f.desc}</p><dl>${f.stats}</dl><div class="inv-btns">${p.alive ? f.btns : ''}</div></div></div>`;
+  }
+
+  function invAct(act) {
+    const p = M.player, h = p.hands, inv = h.inv, s = invSel;
+    if (!p.alive || !s) return;
+    const at = new THREE.Vector3(p.pos.x - Math.sin(p.yaw) * 1.3, p.pos.y + 0.6, p.pos.z - Math.cos(p.yaw) * 1.3);
+    const drop = (e) => { M.loot.drop(e, at, 0.5).keep = p; onSound?.('click'); }; // keep: the dropper doesn't vacuum it straight back up
+    if (s.t === 'slot') {
+      if (act === 'equip') { h.cancel(); inv.select(s.i); h.setMode('combat'); onSound?.('click'); }
+      else if (act === 'drop' && s.i && inv.slots[s.i - 1]) { if (inv.sel === s.i) h.cancel(); drop({ item: inv.removeSlot(s.i - 1) }); invSel = null; }
+    } else {
+      const pool = s.t === 'mat' ? inv.mats : inv.ammo;
+      const n = act === 'dropall' ? pool[s.k] : Math.min(pool[s.k], s.t === 'mat' ? 30 : AMMO[s.k].pickup);
+      if (n > 0) { pool[s.k] -= n; drop(s.t === 'mat' ? { mat: s.k, n } : { ammo: s.k, n }); }
+    }
+    invSig = '';
+  }
+
+  // swap two item slots (1..5); the selection follows the item it was on
+  function invSwap(a, b) {
+    const h = M.player.hands, inv = h.inv, sl = inv.slots;
+    [sl[a - 1], sl[b - 1]] = [sl[b - 1], sl[a - 1]];
+    if (inv.sel === a) inv.sel = b; else if (inv.sel === b) inv.sel = a;
+    if (inv.sel && !inv.current) inv.sel = 0;
+    invSel = { t: 'slot', i: b };
+    invSig = ''; onSound?.('click');
+  }
+
+  invEl.addEventListener('click', (e) => {
+    const t = e.target.closest('[data-slot],[data-mat],[data-ammo],[data-act]');
+    if (!t || !M) return;
+    if (t.dataset.act) { invAct(t.dataset.act); return; }
+    const i = Number(t.dataset.slot);
+    if (t.dataset.slot != null) { if (i && !M.player.hands.inv.slots[i - 1]) return; invSel = { t: 'slot', i }; }
+    else if (t.dataset.mat) invSel = { t: 'mat', k: t.dataset.mat };
+    else invSel = { t: 'ammo', k: t.dataset.ammo };
+    invSig = ''; onSound?.('hover');
+  });
+  invEl.addEventListener('dblclick', (e) => { if (e.target.closest('[data-slot]') && invSel?.t === 'slot') invAct('equip'); });
+  invEl.addEventListener('dragstart', (e) => {
+    const t = e.target.closest('[data-slot]');
+    dragFrom = t ? Number(t.dataset.slot) : -1;
+    if (dragFrom > 0) { e.dataTransfer.setData('text/plain', String(dragFrom)); e.dataTransfer.effectAllowed = 'move'; }
+    else e.preventDefault();
+  });
+  // allow dropping on another item slot (swap) or anywhere off the card (drop on the ground)
+  invEl.addEventListener('dragover', (e) => {
+    const t = e.target.closest('[data-slot]');
+    if (dragFrom > 0 && (t ? Number(t.dataset.slot) > 0 : !e.target.closest('.inv-card'))) e.preventDefault();
+  });
+  invEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const t = e.target.closest('[data-slot]'), to = t ? Number(t.dataset.slot) : -1;
+    if (dragFrom > 0 && to > 0 && to !== dragFrom) invSwap(dragFrom, to);
+    else if (dragFrom > 0 && !t && !e.target.closest('.inv-card')) { invSel = { t: 'slot', i: dragFrom }; invAct('drop'); }
+    dragFrom = -1;
+  });
+  invEl.addEventListener('dragend', () => { dragFrom = -1; });
 
   keyLabels();
   return api;
