@@ -5,6 +5,7 @@ import { R, world, setTag, raycast, removeCollider } from '../physics.js';
 import { getHeight } from '../world/terrain.js';
 import { clamp, damp, angleDiff } from '../util.js';
 import { Avatar } from './avatar.js';
+import { fallDamage } from '../combat/rules.js';
 
 let kcc = null;
 function controller() {
@@ -21,6 +22,7 @@ function controller() {
 export const emptyInput = () => ({ mx: 0, mz: 0, yaw: 0, pitch: 0, jump: false, jumpHeld: false, sprint: false, crouch: false, ads: false });
 
 const _v = new THREE.Vector3();
+
 
 export class Character {
   constructor(scene, { name = 'Player', isBot = false, outfit = 'comet', backbling = 'none', cosmetics = {} } = {}) {
@@ -57,6 +59,9 @@ export class Character {
     this.height = h;
     this.collider.setHalfHeight(h / 2 - MOVE.radius);
     this.collider.setTranslationWrtParent({ x: 0, y: h / 2, z: 0 });
+    // the world pose only follows the parent offset at the next physics step; without this the grown capsule
+    // sits around its old centre for a tick, sunk into the ground (jumping out of a crouch or slide bonked)
+    this.collider.setTranslation({ x: this.pos.x, y: this.pos.y + h / 2, z: this.pos.z });
     return true;
   }
 
@@ -99,7 +104,7 @@ export class Character {
       } else {
         this.deployT += dt;
         if (inp.jump && this.canClose) this.mode = 'skydive'; // back to free fall
-        this.vel.y = damp(this.vel.y, -MOVE.glideFall * (inp.mz > 0.1 ? 1.3 : 1), 3, dt);
+        this.vel.y = damp(this.vel.y, -MOVE.glideFall * (inp.mz > 0.1 ? MOVE.glideFwdMul : 1), 3, dt);
         const sp = MOVE.glideSpeed * (inp.mz < -0.1 ? 0.45 : 1);
         const gx = fx * Math.max(0.35, inp.mz) * sp + rx * inp.mx * 9, gz = fz * Math.max(0.35, inp.mz) * sp + rz * inp.mx * 9;
         this.vel.x = damp(this.vel.x, gx, 1.5, dt); this.vel.z = damp(this.vel.z, gz, 1.5, dt);
@@ -117,11 +122,13 @@ export class Character {
       const vl = Math.hypot(this.vel.x, this.vel.z) || 1;
       this.vel.x = this.vel.x / vl * sp; this.vel.z = this.vel.z / vl * sp;
     }
-    const wantCrouch = inp.crouch || this.sliding;
+    if (!inp.crouch) this.crouchBlock = false; // a slide that ran out keeps you standing until crouch is let go
+    const wantCrouch = (inp.crouch && !this.crouchBlock) || this.sliding;
     if (wantCrouch !== this.crouching) {
       if (this.setHeight(wantCrouch ? MOVE.crouchHeight : MOVE.height) !== false) this.crouching = wantCrouch;
     }
-    this.sprinting = inp.sprint && inp.mz > 0.1 && !this.crouching && !inp.ads && !this.swimming;
+    if (inp.mz <= 0.1 || inp.ads) this.slideSprint = false; // out of a slide you keep sprinting while W is held
+    this.sprinting = (inp.sprint || this.slideSprint) && inp.mz > 0.1 && !this.crouching && !inp.ads && !this.swimming;
 
     if (this.sliding) {
       const vl = Math.hypot(this.vel.x, this.vel.z);
@@ -129,13 +136,15 @@ export class Character {
       const slope = (this.groundY - getHeight(this.pos.x + dx, this.pos.z + dz)); // + when downhill
       let nv = vl - MOVE.slideFriction * dt + clamp(slope, -1, 1) * MOVE.slideSlopeAccel * dt;
       nv = Math.min(nv, 16);
-      // input steers the slide a little but never adds speed
-      const sx = dx * nv + wx * dt * 3, sz = dz * nv + wz * dt * 3, sl = Math.hypot(sx, sz) || 1;
-      this.vel.x = sx / sl * nv; this.vel.z = sz / sl * nv;
+      // the slide turns toward the keys (or the camera with no keys) at a fixed rate, never adding speed
+      const toKeys = wl > 0.1 && wx * fx + wz * fz > -0.1;
+      const turn = clamp(angleDiff(Math.atan2(-dx, -dz), toKeys ? Math.atan2(-wx, -wz) : this.yaw), -MOVE.slideTurn * dt, MOVE.slideTurn * dt);
+      const h = Math.atan2(-dx, -dz) + turn;
+      this.vel.x = -Math.sin(h) * nv; this.vel.z = -Math.cos(h) * nv;
       // airT, not grounded: the capsule shrink and small bumps unground us for a tick or two
       if (nv < MOVE.slideMin || !inp.crouch || inp.sprintPressed || this.airT > 0.15) { // Shift cancels into a run
-        this.sliding = false;
-        if (inp.crouch) inp.crouch = false; // a slide that runs out stands you up (hold-crouch re-reads the key next tick)
+        this.sliding = false; this.crouchBlock = true; this.slideSprint = inp.mz > 0.1;
+        inp.crouch = false; // a slide that ends stands you up (toggle crouch: back to standing)
       }
     } else {
       let speed = this.swimming ? MOVE.swim : this.crouching ? MOVE.crouch : this.sprinting ? MOVE.sprint : MOVE.jog;
@@ -143,7 +152,7 @@ export class Character {
       // strafing and back-pedalling are slower than running forward
       if (wl > 0.1 && !this.swimming) { const f = inp.mz / Math.hypot(inp.mx, inp.mz); speed *= MOVE.strafeMul + ((f >= 0 ? 1 : MOVE.backMul) - MOVE.strafeMul) * f * f; }
       speed *= this.speedMul;
-      const tx = wx * speed, tz = wz * speed;
+      let tx = wx * speed, tz = wz * speed;
       if (this.grounded || this.swimming) {
         // build speed up over ~0.4 s but stop (or turn away) almost at once
         const tl = Math.hypot(tx, tz), ux = tl > 0.01 ? tx / tl : 0, uz = tl > 0.01 ? tz / tl : 0;
@@ -154,6 +163,9 @@ export class Character {
         along = along < tl ? Math.min(tl, along + (along < 0 ? MOVE.accelStop : MOVE.accelRun) * dt) : Math.max(tl, along - MOVE.accelStop * dt);
         this.vel.x = ux * along + px; this.vel.z = uz * along + pz;
       } else if (wl > 0.1) {
+        // air control never brakes the part of your speed that already goes where you steer (slide jumps keep their speed)
+        const along = (this.vel.x * wx + this.vel.z * wz) / wl;
+        if (along > speed) { tx *= along / speed; tz *= along / speed; }
         const k = Math.min(1, MOVE.accelAir * dt / Math.max(0.001, Math.hypot(tx - this.vel.x, tz - this.vel.z)));
         this.vel.x += (tx - this.vel.x) * k; this.vel.z += (tz - this.vel.z) * k;
       }
@@ -172,6 +184,7 @@ export class Character {
       if (inp.jump) {
         if (this.crouching && !this.sliding) { this.setHeight(MOVE.height); this.crouching = false; }
         this.vel.y = MOVE.jumpSpeed; this.jumpT = MOVE.jumpHold;
+        if (this.sliding) { this.crouchBlock = true; this.slideSprint = inp.mz > 0.1; } // a slide jump comes out standing and sprinting
         this.sliding = false; this.grounded = false; this.jumped = true;
         this.onSound?.('jump');
       }
@@ -191,7 +204,8 @@ export class Character {
     this.airT = this.grounded || this.swimming ? 0 : this.airT + dt;
     if (this.grounded && !wasGrounded) {
       const drop = this.airTop - this.pos.y;
-      if (drop > MOVE.fallSafe && !this.swimming) this.onFallDamage?.((drop - MOVE.fallSafe) * MOVE.fallDmgPerM);
+      const dmg = this.swimming ? 0 : fallDamage(drop);
+      if (dmg > 0) this.onFallDamage?.(dmg);
       if (drop > 0.5 || this.jumped) this.landT = 0.2;
       if (drop > 0.8) this.onSound?.('land');
       this.onLand?.(drop);
@@ -297,19 +311,25 @@ export class Character {
     else if (this.sliding) st = 'slide';
     else if (air && this.airT > MOVE.fallFlail) { st = 'flail'; fade = 0.35; }
     else if (air) { st = this.jumped && this.vel.y > 1 ? 'jump' : 'fall'; fade = st === 'fall' && a.state === 'jump' ? 0.3 : 0.12; }
-    else if (this.crouching) st = hs > 0.5 ? 'crouchWalk' : 'crouch';
     else if (hs > 0.5) {
-      st = this.sprinting ? 'sprint' : 'jog';
       // strafe/backpedal: twist hips toward travel, play backwards when moving back
       const travel = Math.atan2(-this.vel.x, -this.vel.z);
       let rel = angleDiff(this.yaw, travel);
       const back = Math.abs(rel) > Math.PI / 2 + 0.2;
       if (back) { rel = angleDiff(Math.PI, rel); ts = -1; }
-      // sprinting diagonally turns the whole body toward travel; otherwise only the legs, the chest stays on the aim
-      if (this.sprinting) bodyOff = clamp(rel, -0.65, 0.65);
-      else a.twist = clamp(rel, -1, 1) * 0.65;
-      ts *= hs / (this.sprinting ? MOVE.sprint : MOVE.jog);
-    } else if (emote) st = `emote_${emote}`;
+      if (this.crouching) {
+        st = 'crouchWalk'; a.twist = clamp(rel, -1, 1) * 0.65; // crouch strafe: legs shuffle sideways, body stays on the camera
+        ts *= hs / MOVE.crouch;
+      } else {
+        st = this.sprinting ? 'sprint' : 'jog';
+        // forward diagonals turn the whole body toward travel; aiming or holding a gun keeps the chest on the aim (hips only),
+        // and so do pure strafes and backpedals
+        const gun = a.upper === 'rifle' || a.upper === 'pistol';
+        if (this.sprinting || (!back && Math.abs(rel) < 1.1 && !this.ads && !gun)) bodyOff = clamp(rel, -0.7, 0.7);
+        else a.twist = clamp(rel, -1, 1) * 0.65;
+        ts *= hs / (this.sprinting ? MOVE.sprint : MOVE.jog);
+      }
+    } else if (this.crouching) st = 'crouch'; else if (emote) st = `emote_${emote}`;
     this.bodyOff = damp(this.bodyOff ?? 0, bodyOff, 10, dt);
     a.root.rotation.y += this.bodyOff;
     a.play(st, fade, ts);

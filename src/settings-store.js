@@ -16,7 +16,7 @@ export const SCHEMA = [
   { tab: 'game', section: 'Mouse', id: 'adsSens', label: 'Targeting Sensitivity', type: 'range', min: 0.2, max: 1.5, step: 0.05, def: 0.7, desc: 'Multiplier applied while aiming down sights.' },
   { tab: 'game', section: 'Mouse', id: 'scopeSens', label: 'Scope Sensitivity', type: 'range', min: 0.2, max: 1.5, step: 0.05, def: 0.6, desc: 'Multiplier applied while looking through a scope.' },
   { tab: 'game', section: 'Mouse', id: 'invertY', label: 'Invert View', type: 'choice', options: ['Off', 'On'], def: 'Off', desc: 'Flip vertical mouse look.' },
-  { tab: 'game', section: 'Movement', id: 'toggleSprint', label: 'Toggle Sprint', type: 'choice', options: ['Off', 'On'], def: 'Off', desc: 'Off: hold Sprint to sprint. On: press once to toggle sprinting.' },
+  { tab: 'game', section: 'Movement', id: 'toggleSprint', label: 'Toggle Sprint', type: 'choice', options: ['Off', 'On', 'Auto'], def: 'Off', desc: 'Off: hold Sprint to sprint. On: press once to toggle sprinting. Auto: always sprint when moving forward, hold Sprint to jog.' },
   { tab: 'game', section: 'Movement', id: 'toggleCrouch', label: 'Toggle Crouch', type: 'choice', options: ['Off', 'On'], def: 'On', desc: 'Off: hold Crouch. On: press once to crouch, again to stand.' },
   { tab: 'game', section: 'Combat', id: 'autoPickup', label: 'Auto Pick Up Weapons', type: 'choice', options: ['Off', 'On'], def: 'Off', desc: 'Pick up weapons by walking over them when you have a free slot.' },
   { tab: 'game', section: 'Combat', id: 'damageNumbers', label: 'Damage Numbers', type: 'choice', options: ['Off', 'On'], def: 'On', desc: 'Show floating damage numbers when you hit something.' },

@@ -66,7 +66,7 @@ export function createHud(root, { onExit, onSound } = {}) {
       <path d="M-5 9H5M-3 18H3M-5 27H5M-3 36H3M-5 45H5" stroke-width="0.6"/>
     </svg></div></div>
     <canvas class="compass" width="600" height="46"></canvas>
-    <div class="mm"><canvas width="230" height="230"></canvas><div class="mm-name"></div></div>
+    <div class="mm"><canvas width="230" height="230"></canvas></div>
     <div class="stats">
       <span class="st st-storm">${SVG.storm}<b></b></span>
       <span class="st">${SVG.alive}<b class="v-alive"></b></span>
@@ -393,10 +393,17 @@ export function createHud(root, { onExit, onSound } = {}) {
     g.drawImage(MAP, toMap(p.pos.x) - view / 2 * mpp, toMap(p.pos.z) - view / 2 * mpp, view * mpp, view * mpp, 0, 0, W, W);
     if (m.storm) stormOverlay(g, m.storm, p.pos.x, p.pos.z, scale, W / 2, W / 2, W, W);
     busLine(g, m, (x, z) => [W / 2 + (x - p.pos.x) * scale, W / 2 + (z - p.pos.z) * scale]);
+    // town names sit on the map itself, like the big map
+    g.textAlign = 'center'; g.font = '13px "Lilita One"'; g.lineWidth = 3; g.strokeStyle = 'rgba(10,25,60,0.85)'; g.fillStyle = '#fff';
+    for (const q of POIS) {
+      const t = q.name.toUpperCase(), hw = g.measureText(t).width / 2 + 3;
+      const cx = W / 2 + (q.x - p.pos.x) * scale, y = W / 2 + (q.z - p.pos.z) * scale;
+      if (cx < 0 || cx > W || y < 8 || y > W - 4) continue;
+      const x = clamp(cx, hw, W - hw); // keep the whole name on the minimap
+      g.strokeText(t, x, y); g.fillText(t, x, y);
+    }
     if (marker) pin(g, clamp(W / 2 + (marker.x - p.pos.x) * scale, 8, W - 8), clamp(W / 2 + (marker.z - p.pos.z) * scale, 20, W - 2), 7);
     arrow(g, W / 2, W / 2, p.yaw, 8);
-    const poi = POIS.find((q) => Math.hypot(q.x - p.pos.x, q.z - p.pos.z) < q.r);
-    setText($('.mm-name'), poi?.name ?? '');
   }
 
   const BW = 760;

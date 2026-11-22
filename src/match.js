@@ -27,8 +27,9 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
     building, fx, chars,
     hurt(t, dmg, attacker, info = {}) {
       if (!t.alive || dmg <= 0 || state === 'over') return;
-      const r = applyDamage(t.health, t.shield, dmg);
-      t.health = r.health; t.shield = r.shield; t.lastHurt = time; t.lastAttacker = attacker;
+      const fall = info.cls === 'fall'; // falls skip the shield and hit health directly, like the storm
+      const r = applyDamage(t.health, fall ? 0 : t.shield, dmg);
+      t.health = r.health; if (!fall) t.shield = r.shield; t.lastHurt = time; t.lastAttacker = attacker;
       if (attacker === player && info.point) events.damage?.(info.point, Math.round(dmg), { shield: r.toShield > 0 && !r.toHealth, head: info.head });
       if (t === player) events.hurt?.(attacker, dmg);
       if (t.health <= 0) eliminate(t, attacker, info.cls);
@@ -96,6 +97,7 @@ export function createMatch({ scene, rig, fx, building, pois, loadout, events = 
     inp.mx = (input.down('right') ? 1 : 0) - (input.down('left') ? 1 : 0);
     inp.jump = input.pressed('jump'); inp.jumpHeld = input.down('jump');
     if (settings.toggleSprint === 'On') { if (input.pressed('sprint')) sprintToggle = !sprintToggle; inp.sprint = sprintToggle; }
+    else if (settings.toggleSprint === 'Auto') inp.sprint = !input.down('sprint');
     else inp.sprint = input.down('sprint');
     inp.crouchPressed = input.pressed('crouch'); inp.sprintPressed = input.pressed('sprint');
     if (settings.toggleCrouch === 'On') { if (inp.crouchPressed) inp.crouch = !inp.crouch; }

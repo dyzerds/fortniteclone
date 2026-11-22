@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Inventory, healResult, applyDamage, weaponDamage } from '../src/combat/rules.js';
+import { Inventory, healResult, applyDamage, weaponDamage, fallDamage } from '../src/combat/rules.js';
 
 test('inventory fills slots, stacks heals, swaps when full', () => {
   const inv = new Inventory();
@@ -49,4 +49,14 @@ test('shotgun falloff and headshots', () => {
   assert.equal(weaponDamage('ar', 0, 50, true), 45);
   const near = weaponDamage('shotgun', 0, 5, false), far = weaponDamage('shotgun', 0, 40, false);
   assert.ok(far < near && Math.abs(far - near * 0.35) < 1e-9);
+});
+
+test('fall damage matches the build-floor table', () => {
+  const floors = (n) => fallDamage(n * 3.75);
+  assert.equal(floors(3), 0);
+  assert.equal(Math.round(floors(4)), 21);
+  assert.equal(Math.round(floors(5)), 52);
+  assert.ok(floors(6) >= 100, '6 floors kills from full health');
+  assert.ok(fallDamage(30) > floors(6), 'keeps growing past the table');
+  assert.equal(fallDamage(2.3), 0, 'a jump never hurts');
 });

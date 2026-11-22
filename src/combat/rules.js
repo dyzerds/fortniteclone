@@ -1,5 +1,5 @@
 // Pure combat rules: inventory, heals, damage. No three.js so node:test can run it.
-import { AMMO, CONSUMABLES, MAT_CAP, PLAYER, WEAPONS } from '../config.js';
+import { AMMO, CONSUMABLES, MAT_CAP, MOVE, PLAYER, WEAPONS } from '../config.js';
 
 // Items: { kind: 'weapon', cls, rarity, mag } | { kind: 'heal', id, count }
 export class Inventory {
@@ -84,4 +84,13 @@ export function weaponDamage(cls, rarity, dist, head) {
     d *= 1 - t * (1 - w.falloffMin);
   }
   return head ? d * w.head : d;
+}
+
+// fall damage for a drop of d metres: linear between the MOVE.fallDmg points, extended past the last one
+export function fallDamage(d, T = MOVE.fallDmg) {
+  if (d <= T[0][0]) return 0;
+  let i = 1;
+  while (i < T.length - 1 && d > T[i][0]) i++;
+  const [a, da] = T[i - 1], [b, db] = T[i];
+  return da + (db - da) * (d - a) / (b - a);
 }

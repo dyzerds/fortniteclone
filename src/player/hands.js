@@ -16,7 +16,7 @@ export const emptyIntent = () => ({
 
 export const PIECES = ['wall', 'floor', 'ramp', 'cone'];
 const MAT_ORDER = ['wood', 'brick', 'metal'];
-const PROP_MAT = { tree: 'wood', rock: 'brick', metal: 'metal' };
+const PROP_MAT = { tree: 'wood', rock: 'brick', car: 'metal' };
 const _v = new THREE.Vector3(), _d = new THREE.Vector3(), _a = new THREE.Vector3(), _b = new THREE.Vector3(), _n = new THREE.Vector3();
 
 export const projectiles = []; // sniper rounds in flight
@@ -302,9 +302,15 @@ export class Hands {
   updateVisual(emoting = false) {
     const ch = this.ch, a = ch.avatar, cur = this.inv.current;
     let key = '', pose = null;
-    if (ch.alive && ch.mode === 'ground' && !ch.swimming && !emoting) {
-      if (this.mode !== 'combat') pose = 'build';
-      else if (!cur) { key = 'pick'; pose = ch.sprinting ? null : 'pickaxe'; } // sprint: arms pump
+    // treading water keeps the pickaxe in hand; swimming strokes put it away
+    const tread = ch.swimming && !ch.swimJump && ch.moveSpeed <= 0.6;
+    if (ch.alive && ch.mode === 'ground' && (!ch.swimming || tread) && !emoting) {
+      if (tread) key = cur ? '' : 'pick';
+      else if (this.mode !== 'combat') pose = 'build';
+      else if (!cur) { // sprint: arms pump; jumps and short drops: pickaxe up overhead (a long fall flails)
+        const air = !ch.grounded && (ch.jumped || ch.airT > 0.18) && ch.airT < MOVE.fallFlail;
+        key = 'pick'; pose = air ? 'pickAir' : ch.sprinting ? null : 'pickaxe';
+      }
       else if (cur.kind === 'heal') { key = `heal:${cur.id}`; pose = this.useT > 0 ? 'consume' : 'pickaxe'; }
       else { key = `w:${cur.cls}:${cur.rarity}`; pose = cur.cls === 'pistol' ? 'pistol' : 'rifle'; }
     }

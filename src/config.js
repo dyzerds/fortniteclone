@@ -25,17 +25,21 @@ export const GRID = {
 };
 
 export const MOVE = {
-  jog: 5.5, sprint: 7.5, crouch: 3.4, swim: 3.2, swimDepth: 1.38, swimJump: 11,
+  jog: 5.5, sprint: 7.8, crouch: 3.4, swim: 3.2, swimDepth: 1.38, swimJump: 11,
   strafeMul: 0.65, backMul: 0.55, // speed share when moving sideways / backwards
   accelRun: 14, accelStop: 70, accelAir: 9,
   gravity: 30, jumpSpeed: 6.5, jumpHold: 0.25, // apex ~2.3 m, ~0.87 s in the air
   fallFlail: 1.5,      // seconds in the air before the long-fall pose
-  slideBoost: 8.3, slideFriction: 1.55, slideSlopeAccel: 14, slideMin: 5.2, // flat slide ~2 s, 1.1x down to 0.7x sprint
+  slideBoost: 8.3, slideFriction: 1.55, slideSlopeAccel: 14, slideMin: 5.2, // flat slide ~2 s, 1.06x down to 0.67x sprint
+  slideTurn: 2.5,      // rad/s the slide turns toward the keys or the camera
   mantleMax: 2.4, mantleTime: 0.35,
-  fallSafe: 8, fallDmgPerM: 7,
+  // fall damage by drop height (m): build floors are 3.75 m; 3 floors 0, 4 floors 21, 5 floors 52, 6 floors kills
+  fallDmg: [[11.25, 0], [15, 21], [18.75, 52], [22.5, 105]],
   radius: 0.35, height: 1.85, crouchHeight: 1.25, headY: 1.5,
-  skydiveFall: 20, skydiveDive: 40, skydiveSteer: 22,
-  glideFall: 4.5, glideSpeed: 14, autoGlideHeight: 35,
+  // from the barge (~390 m up): ~42 s floating with no input, ~10.5 s diving (W + look down) to the auto-open height
+  skydiveFall: 8.7, skydiveDive: 36, skydiveSteer: 22,
+  // glider: ~20 s down from the auto-open height with no input, ~14 s holding W (x1.43)
+  glideFall: 2, glideFwdMul: 1.43, glideSpeed: 14, autoGlideHeight: 40,
   minDeploy: 12,       // air below needed to open the glider by hand (also mid-fall off builds)
 };
 
@@ -58,7 +62,7 @@ export const BUILD_REACH = 1;   // cells
 export const HARVEST = {
   swing: 0.6, hitAt: 0.15, reach: 2.6,
   charDmg: 20, structDmg: 50, critMult: 2,
-  yield: { tree: 6, rock: 5, metal: 5, wood: 5, brick: 5 },
+  yield: { tree: 6, rock: 4, car: 15, metal: 5, wood: 5, brick: 5 }, // props by kind, built pieces by material
 };
 
 export const RARITIES = [
@@ -110,7 +114,7 @@ export const PLAYER = { maxHealth: 100, maxShield: 100, slots: 5 };
 export const STORM = {
   startRadius: 640,
   phases: [
-    { wait: 75, shrink: 60, frac: 0.55, dps: 1 },
+    { wait: 95, shrink: 60, frac: 0.55, dps: 1 }, // first wait covers the ~25 s drop from the barge
     { wait: 50, shrink: 45, frac: 0.32, dps: 2 },
     { wait: 40, shrink: 40, frac: 0.18, dps: 5 },
     { wait: 30, shrink: 30, frac: 0.09, dps: 8 },
@@ -121,7 +125,7 @@ export const STORM = {
 
 export const MATCH = {
   bots: 29,
-  busHeight: 170, busSpeed: 34,
+  busHeight: 400, busSpeed: 34,
   xpPerKill: 120, xpPerPlace: 900, xpBase: 150,
 };
 

@@ -328,6 +328,7 @@ const POSES = {
   rifle: pose({ RightUpperArm: [-75, 0, -25], RightLowerArm: [-35, 0, 0], RightHand: [0, 0, 0], LeftUpperArm: [-80, -20, 30], LeftLowerArm: [-20, 0, 0], LeftHand: [0, 0, 0] }),
   pistol: pose({ RightUpperArm: [-88, 0, -8], RightLowerArm: [0, 0, 0], RightHand: [0, 0, 0], LeftUpperArm: [-85, 0, 28], LeftLowerArm: [-10, 0, 0], LeftHand: [0, 0, 0] }),
   pickaxe: pose({ RightUpperArm: [-8, 0, -10], RightLowerArm: [-25, 0, 0] }), // hangs at the thigh
+  pickAir: pose({ RightUpperArm: [-150, 0, -20], RightLowerArm: [-30, 0, 0] }), // raised overhead in the air
   consume: pose({ RightUpperArm: [-60, 0, -5], RightLowerArm: [-90, 0, 0], LeftUpperArm: [-50, 0, 10], LeftLowerArm: [-80, 0, 0] }),
   build: pose({ RightUpperArm: [-70, 0, -10], RightLowerArm: [-40, 0, 0] }),
 };

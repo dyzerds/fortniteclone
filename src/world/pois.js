@@ -49,7 +49,7 @@ export function createPois(scene) {
       cars.setMatrixAt(i, mat);
       cars.setColorAt(i, new THREE.Color(pick(r0, carCols)));
       const cq = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot);
-      addProp('metal', x, y, z, 300, [[cars, i, mat]], R.ColliderDesc.cuboid(1, 0.9, 2.1).setTranslation(x, y + 0.9, z).setRotation(cq), 2);
+      addProp('car', x, y, z, 400, [[cars, i, mat]], R.ColliderDesc.cuboid(1, 0.9, 2.1).setTranslation(x, y + 0.9, z).setRotation(cq), 2);
     }
   }
   cars.instanceMatrix.needsUpdate = true; cars.instanceColor.needsUpdate = true; cars.computeBoundingSphere();
