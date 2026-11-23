@@ -27,7 +27,7 @@ export const GRID = {
 export const MOVE = {
   jog: 5.5, sprint: 7.8, crouch: 3.4, swim: 3.2, swimDepth: 1.38, swimJump: 11,
   strafeMul: 0.65, backMul: 0.55, // speed share when moving sideways / backwards
-  accelRun: 14, accelStop: 70, accelAir: 9,
+  accelRun: 14, accelStop: 70, accelAir: 6, // air: ~6 m/s2 toward the keys (jog-jump + S slows ~5.5 to ~2 by landing); no keys keeps speed
   gravity: 30, jumpSpeed: 6.5, jumpHold: 0.25, // apex ~2.3 m, ~0.87 s in the air
   fallFlail: 1.5,      // seconds in the air before the long-fall pose
   slideBoost: 8.3, slideFriction: 1.55, slideSlopeAccel: 14, slideMin: 5.2, // flat slide ~2 s, 1.06x down to 0.67x sprint
@@ -36,10 +36,11 @@ export const MOVE = {
   // fall damage by drop height (m): build floors are 3.75 m; 3 floors 0, 4 floors 21, 5 floors 52, 6 floors kills
   fallDmg: [[11.25, 0], [15, 21], [18.75, 52], [22.5, 105]],
   radius: 0.35, height: 1.85, crouchHeight: 1.25, headY: 1.5,
-  // from the barge (~390 m up): ~42 s floating with no input, ~10.5 s diving (W + look down) to the auto-open height
-  skydiveFall: 8.7, skydiveDive: 36, skydiveSteer: 22,
-  // glider: ~20 s down from the auto-open height with no input, ~14 s holding W (x1.43)
-  glideFall: 2, glideFwdMul: 1.43, glideSpeed: 14, autoGlideHeight: 40,
+  // sink rates measured against a build tower (floors/s): free fall 3.1 (11.7 m/s), glider 1.3 (4.9 m/s).
+  // from the barge (~580 m up): ~41 s floating with no input, ~10 s diving (W + look down) to the auto-open height
+  skydiveFall: 11.7, skydiveDive: 49, skydiveSteer: 22,
+  // glider: opens itself ~100 m up, then ~20 s down with no input, ~14 s holding W (x1.43)
+  glideFall: 4.9, glideFwdMul: 1.43, glideSpeed: 14, autoGlideHeight: 100,
   minDeploy: 12,       // air below needed to open the glider by hand (also mid-fall off builds)
 };
 
@@ -125,7 +126,7 @@ export const STORM = {
 
 export const MATCH = {
   bots: 29,
-  busHeight: 400, busSpeed: 34,
+  busHeight: 590, busSpeed: 34,
   xpPerKill: 120, xpPerPlace: 900, xpBase: 150,
 };
 

@@ -1,7 +1,7 @@
 // Bot brains. Each bot fills a movement input and a hands intent, exactly like the player does.
 // Goals in priority order: drop -> fight -> escape storm -> heal -> find a weapon -> harvest -> roam toward the zone.
 import * as THREE from 'three';
-import { BOT, WEAPONS } from './config.js';
+import { BOT, WEAPONS, MOVE } from './config.js';
 import { raycast } from './physics.js';
 import { props } from './world/terrain.js';
 import { emptyInput } from './player/controller.js';
@@ -189,8 +189,8 @@ export class BotBrain {
     if (ch.mode === 'bus') return;
     if (ch.mode === 'skydive' || ch.mode === 'glide') {
       const L = this.landing, dx = L.x - ch.pos.x, dz = L.z - ch.pos.z, d = Math.hypot(dx, dz);
-      inp.yaw = yawTo(dx, dz); inp.mz = d > 6 ? 1 : 0;
-      inp.pitch = ch.mode === 'skydive' ? (d < (ch.pos.y - 40) * 0.6 ? -1.2 : -0.2) : -0.3;
+      inp.yaw = yawTo(dx, dz); inp.mz = d > 6 || ch.mode === 'skydive' ? 1 : 0; // W in free fall: diving needs it even right above the spot
+      inp.pitch = ch.mode === 'skydive' ? (d < (ch.pos.y - MOVE.autoGlideHeight) * 0.6 ? -1.2 : -0.2) : -0.3;
       return;
     }
 

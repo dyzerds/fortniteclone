@@ -72,6 +72,8 @@ export function createSky(scene) {
     sun, clouds, dome,
     update(dt, focus, cameraPos) {
       dome.position.copy(cameraPos);
+      // thinner haze high up, so the island stays readable from the barge (~590 m)
+      scene.fog.density = 0.0011 * Math.min(1, 300 / Math.max(1, cameraPos.y));
       clouds.rotation.y += dt * 0.004;
       // shadow camera follows the focus point, snapped to texels to avoid shimmer
       const snap = 140 / 2048;
