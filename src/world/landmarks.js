@@ -209,6 +209,8 @@ const B = {
     put(new THREE.CylinderGeometry(0.86, 0.86, 0.02, 12), 0.7, 0.85, 0, '#b99132', { r: [0, 0, PI / 2] });
     put(new THREE.CylinderGeometry(0.86, 0.86, 0.02, 12), -0.7, 0.85, 0, '#b99132', { r: [0, 0, PI / 2] });
     for (const x of [-0.3, 0.3]) put(new THREE.CylinderGeometry(0.87, 0.87, 0.06, 12), x, 0.85, 0, '#c9a444', { r: [0, 0, PI / 2] });
+    for (const s of [1, -1]) for (const [r, c] of [[0.62, '#a88328'], [0.38, '#b48d2e'], [0.15, '#a07a22']]) // rolled layers on each end
+      put(new THREE.RingGeometry(r - 0.035, r + 0.035, 16), 0.715 * s, 0.85, 0, c, { r: [0, s * PI / 2, 0] });
     coll('b', 0, 0.85, 0, 0.7, 0.8, 0.8);
   },
   fence(p) {
