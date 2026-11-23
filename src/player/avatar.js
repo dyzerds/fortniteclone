@@ -46,10 +46,11 @@ const limb = (a, b, len, seg = 12) => new THREE.LatheGeometry([
 ].map(([x, y]) => new THREE.Vector2(x, y)), seg);
 // torso shell (chest bone space): waist up to the shoulder line, flattened front-to-back
 const torso = () => new THREE.LatheGeometry([
-  [0, -0.09], [0.15, -0.085], [0.168, 0], [0.198, 0.08], [0.222, 0.15], [0.212, 0.2], [0.16, 0.236], [0.075, 0.252], [0, 0.256],
+  [0, -0.09], [0.155, -0.085], [0.172, 0], [0.204, 0.08], [0.232, 0.15], [0.224, 0.2], [0.17, 0.238], [0.08, 0.254], [0, 0.258],
 ].map(([x, y]) => new THREE.Vector2(x, y)), 20).scale(1, 1, 0.64);
 
 // ---------- body build ----------
+const HEAD_SCALE = 1.07; // slightly oversized head: stylized proportions
 function buildBody(o, backblingId) {
   const parts = [];
   const add = (bone, geo, color, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => parts.push({ bone, geo, color, x, y, z, rx, ry, rz });
@@ -59,7 +60,7 @@ function buildBody(o, backblingId) {
   add('Hips', ell(0.195, 0.12, 0.132), bottom, 0, -0.02, 0);
   add('Hips', new THREE.CylinderGeometry(0.173, 0.178, 0.055, 24).scale(1, 1, 0.74), acc, 0, 0.075, 0); // belt
   add('Hips', box(0.07, 0.05, 0.02, 0.01), '#e9e4d6', 0, 0.075, 0.13); // buckle
-  add('Spine', ell(0.168, 0.13, 0.118), top, 0, 0.07, 0);
+  add('Spine', ell(0.172, 0.13, 0.12), top, 0, 0.07, 0);
   add('Chest', torso(), top, 0, 0, 0);
   add('Chest', box(0.05, 0.34, 0.02, 0.01), acc, 0.04, 0.08, 0.125, 0, 0, -0.5); // strap across the chest
   add('Chest', box(0.05, 0.34, 0.02, 0.01), acc, 0.04, 0.08, -0.125, 0, 0, 0.5);
@@ -80,6 +81,7 @@ function buildBody(o, backblingId) {
   // hair / headgear
   if (o.hair === 'spiky') {
     add('Head', ell(0.162, 0.118, 0.168), hc, 0, 0.205, -0.014);
+    add('Head', ell(0.164, 0.16, 0.152), hc, 0, 0.155, -0.035); // back of the head
     for (let i = 0; i < 9; i++) {
       const a = (i / 9) * Math.PI * 2 + 0.3, k = 0.75 + (i % 3) * 0.12;
       add('Head', new THREE.ConeGeometry(0.056, 0.18 + (i % 2) * 0.04, 7), hc, Math.cos(a) * 0.1, 0.29, Math.sin(a) * 0.1 - 0.035, Math.sin(a) * k, 0, -Math.cos(a) * k);
@@ -87,6 +89,7 @@ function buildBody(o, backblingId) {
     for (const x of [-0.07, 0, 0.07]) add('Head', new THREE.ConeGeometry(0.045, 0.14, 6), hc, x, 0.25, 0.12, 1.35, 0, -x * 4); // fringe
   } else if (o.hair === 'bun') {
     add('Head', ell(0.166, 0.125, 0.172), hc, 0, 0.195, -0.016);
+    add('Head', ell(0.166, 0.165, 0.152), hc, 0, 0.15, -0.035); // back of the head
     add('Head', ell(0.078), hc, 0, 0.3, -0.13);
     for (const s of [1, -1]) add('Head', ell(0.04, 0.09, 0.04, 10), hc, 0.135 * s, 0.11, 0.06, 0, 0, 0.1 * s); // side locks
   } else if (o.hair === 'mohawk') {
@@ -111,25 +114,25 @@ function buildBody(o, backblingId) {
   }
   // arms and legs (both sides)
   for (const [side, s] of [['Left', 1], ['Right', -1]]) {
-    add(`${side}UpperArm`, ell(0.084, 0.08, 0.08), top, 0.008 * s, -0.02, 0); // shoulder
-    add(`${side}UpperArm`, limb(0.072, 0.06, 0.17), top, 0, -0.135, 0);
-    add(`${side}UpperArm`, new THREE.TorusGeometry(0.058, 0.014, 6, 16).rotateX(Math.PI / 2), acc, 0, -0.235, 0); // sleeve cuff
-    add(`${side}LowerArm`, ell(0.056, 0.056, 0.056, 10), skin, 0, 0, 0); // elbow
-    add(`${side}LowerArm`, limb(0.058, 0.05, 0.15), skin, 0, -0.11, 0);
-    add(`${side}LowerArm`, new THREE.CylinderGeometry(0.062, 0.056, 0.08, 12), o.gloves, 0, -0.205, 0);
-    add(`${side}Hand`, ell(0.038, 0.058, 0.052, 12), o.gloves, 0, -0.045, 0);
-    add(`${side}Hand`, box(0.046, 0.075, 0.088, 0.022), o.gloves, 0, -0.1, 0.004);
-    add(`${side}Hand`, limb(0.018, 0.016, 0.04, 8), o.gloves, -0.012 * s, -0.06, 0.05, -0.6, 0, 0); // thumb
-    add(`${side}UpperLeg`, ell(0.112, 0.11, 0.112, 12), bottom, 0, -0.04, 0); // hip
-    add(`${side}UpperLeg`, limb(0.11, 0.082, 0.29), bottom, 0, -0.2, 0);
-    add(`${side}UpperLeg`, box(0.03, 0.11, 0.09, 0.015), bottom, 0.112 * s, -0.2, 0.01); // side pocket
-    add(`${side}LowerLeg`, ell(0.082, 0.08, 0.082, 10), bottom, 0, 0, 0.004); // knee
-    add(`${side}LowerLeg`, limb(0.08, 0.066, 0.24), bottom, 0, -0.16, 0);
-    add(`${side}LowerLeg`, new THREE.CylinderGeometry(0.084, 0.092, 0.2, 14), o.boots, 0, -0.32, 0);
-    add(`${side}LowerLeg`, new THREE.TorusGeometry(0.085, 0.016, 6, 16).rotateX(Math.PI / 2), acc, 0, -0.22, 0); // boot cuff
-    add(`${side}Foot`, box(0.13, 0.095, 0.25, 0.045), o.boots, 0, -0.02, 0.05);
-    add(`${side}Foot`, ell(0.066, 0.05, 0.07, 12), o.boots, 0, -0.015, 0.15); // toe cap
-    add(`${side}Foot`, box(0.138, 0.03, 0.27, 0.012), '#2a2a30', 0, -0.072, 0.05); // sole
+    add(`${side}UpperArm`, ell(0.094, 0.088, 0.09), top, -0.004 * s, -0.015, 0); // shoulder
+    add(`${side}UpperArm`, limb(0.078, 0.064, 0.17), top, 0, -0.135, 0);
+    add(`${side}UpperArm`, new THREE.TorusGeometry(0.062, 0.015, 6, 16).rotateX(Math.PI / 2), acc, 0, -0.235, 0); // sleeve cuff
+    add(`${side}LowerArm`, ell(0.06, 0.06, 0.06, 10), skin, 0, 0, 0); // elbow
+    add(`${side}LowerArm`, limb(0.062, 0.054, 0.15), skin, 0, -0.11, 0);
+    add(`${side}LowerArm`, new THREE.CylinderGeometry(0.068, 0.06, 0.085, 12), o.gloves, 0, -0.205, 0);
+    add(`${side}Hand`, ell(0.046, 0.062, 0.058, 12), o.gloves, 0, -0.045, 0);
+    add(`${side}Hand`, box(0.06, 0.085, 0.098, 0.028), o.gloves, 0, -0.1, 0.006);
+    add(`${side}Hand`, limb(0.022, 0.019, 0.045, 8), o.gloves, -0.014 * s, -0.062, 0.056, -0.6, 0, 0); // thumb
+    add(`${side}UpperLeg`, ell(0.12, 0.112, 0.122, 12), bottom, 0, -0.04, 0); // hip
+    add(`${side}UpperLeg`, limb(0.118, 0.09, 0.3), bottom, 0, -0.2, 0);
+    add(`${side}UpperLeg`, box(0.03, 0.11, 0.09, 0.015), bottom, 0.12 * s, -0.2, 0.01); // side pocket
+    add(`${side}LowerLeg`, ell(0.09, 0.086, 0.092, 10), bottom, 0, 0, 0.006); // knee
+    add(`${side}LowerLeg`, limb(0.088, 0.076, 0.24), bottom, 0, -0.16, 0);
+    add(`${side}LowerLeg`, new THREE.CylinderGeometry(0.094, 0.1, 0.22, 14), o.boots, 0, -0.31, 0);
+    add(`${side}LowerLeg`, new THREE.TorusGeometry(0.095, 0.018, 6, 16).rotateX(Math.PI / 2), acc, 0, -0.205, 0); // boot cuff
+    add(`${side}Foot`, box(0.142, 0.1, 0.26, 0.048), o.boots, 0, -0.02, 0.05);
+    add(`${side}Foot`, ell(0.072, 0.054, 0.076, 12), o.boots, 0, -0.015, 0.155); // toe cap
+    add(`${side}Foot`, box(0.15, 0.034, 0.28, 0.014), '#2a2a30', 0, -0.072, 0.05); // sole
   }
   // back bling
   if (backblingId === 'rocket') {
@@ -149,10 +152,10 @@ function buildBody(o, backblingId) {
   const geos = parts.map((p) => {
     let g = p.geo.index ? p.geo.toNonIndexed() : p.geo;
     g.deleteAttribute('uv');
-    const w = restWorld[p.bone];
+    const w = restWorld[p.bone], k = p.bone === 'Head' ? HEAD_SCALE : 1;
     g.applyMatrix4(new THREE.Matrix4().compose(
-      new THREE.Vector3(w[0] + p.x, w[1] + p.y, w[2] + p.z),
-      new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rx, p.ry, p.rz)), new THREE.Vector3(1, 1, 1)));
+      new THREE.Vector3(w[0] + p.x * k, w[1] + p.y * k, w[2] + p.z * k),
+      new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rx, p.ry, p.rz)), new THREE.Vector3(k, k, k)));
     const n = g.attributes.position.count, nrm = g.attributes.normal;
     color.set(p.color);
     const c = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);

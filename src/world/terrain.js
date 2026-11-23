@@ -572,7 +572,7 @@ function createWater(scene) {
     uniforms: THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
       uTime: { value: 0 }, uDepth: { value: null }, uSize: { value: SIZE },
       uShallow: { value: new THREE.Color('#5ff0e0') }, uDeep: { value: new THREE.Color('#1677d6') },
-      uSky: { value: new THREE.Color('#bfe8ff') },
+      uSky: { value: new THREE.Color('#a6dcff') },
     }]),
     vertexShader: `
       varying vec3 vW;
@@ -587,17 +587,27 @@ function createWater(scene) {
         vec2 uv = vW.xz / uSize + 0.5;
         float inside = step(0., uv.x) * step(uv.x, 1.) * step(0., uv.y) * step(uv.y, 1.);
         float depth = mix(1., texture2D(uDepth, uv).r, inside) * 20.;
-        float w1 = sin(vW.x*0.35 + uTime*1.3) * sin(vW.z*0.3 - uTime*1.1);
-        float w2 = sin(vW.x*1.3 - uTime*2.1 + vW.z*0.9);
-        vec3 n = normalize(vec3(w1*0.08 + w2*0.03, 1., w2*0.05));
+        // layered waves at different angles, so no single stripe direction repeats
+        vec2 p = vW.xz, d = vec2(0.);
+        d += vec2(0.8, 0.6) * cos(dot(p, vec2(0.8, 0.6)) * 0.33 + uTime * 1.2) * 0.07;
+        d += vec2(-0.5, 0.86) * cos(dot(p, vec2(-0.5, 0.86)) * 0.57 - uTime * 1.5) * 0.05;
+        d += vec2(0.97, -0.26) * cos(dot(p, vec2(0.97, -0.26)) * 1.1 + uTime * 2.3) * 0.03;
+        d += vec2(-0.3, -0.95) * cos(dot(p, vec2(-0.3, -0.95)) * 1.9 - uTime * 2.9) * 0.02;
+        vec3 n = normalize(vec3(d.x, 1., d.y));
         vec3 V = normalize(cameraPosition - vW);
         float fres = pow(1. - max(dot(n, V), 0.), 4.);
         vec3 col = mix(uShallow, uDeep, smoothstep(0.3, 9., depth));
-        col = mix(col, uSky, fres * 0.6);
-        float foam = smoothstep(0.9, 0.0, depth + w2*0.25) * inside;
-        col = mix(col, vec3(1.), foam*0.85);
+        col *= 0.94 + 0.12 * (d.x + d.y) * 4.;   // soft wave light and dark
+        col = mix(col, uSky, fres * 0.45);
+        // shore foam: solid edge plus two bands that roll outward from the beach
+        float wob = sin(p.x * 0.9 + p.y * 0.7 + uTime) * 0.12;
+        float edge = smoothstep(0.55, 0.15, depth + wob);
+        float ph = fract(depth * 0.55 - uTime * 0.18 + wob);
+        float band = smoothstep(0.08, 0.0, abs(ph - 0.5)) * smoothstep(2.6, 0.6, depth);
+        float foam = max(edge, band * 0.75) * inside;
+        col = mix(col, vec3(1.), foam * 0.85);
         vec3 L = normalize(vec3(0.5, 0.8, 0.3));
-        col += pow(max(dot(reflect(-L, n), V), 0.), 120.) * 0.9;
+        col += pow(max(dot(reflect(-L, n), V), 0.), 90.) * 0.8;
         float a = mix(0.55, 0.93, smoothstep(0.2, 5., depth));
         gl_FragColor = vec4(col, max(a, foam));
         #include <fog_fragment>

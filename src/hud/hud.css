@@ -39,12 +39,17 @@
 .bar { display: flex; align-items: center; gap: 8px; }
 .bar .ic svg { width: 20px; height: 20px; display: block; filter: drop-shadow(0 2px 0 rgba(8, 18, 45, 0.7)); }
 .b-shield .ic { color: var(--shield); } .b-health .ic { color: var(--health); }
-.bar .track { flex: 1; height: 18px; background: rgba(10, 20, 50, 0.6); border-radius: 4px; overflow: hidden; transform: skewX(-12deg);
-  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.15); }
+.bar .track { position: relative; flex: 1; height: 20px; background: rgba(8, 16, 42, 0.72); border-radius: 3px; overflow: hidden; transform: skewX(-14deg);
+  box-shadow: 0 0 0 2px rgba(8, 16, 42, 0.85), inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.b-shield .track { height: 15px; }
+.bar .track::after { content: ''; position: absolute; inset: 0; pointer-events: none; /* quarter ticks + top gloss */
+  background: repeating-linear-gradient(90deg, transparent 0 calc(25% - 2px), rgba(8, 16, 42, 0.55) calc(25% - 2px) 25%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.28), transparent 45%); }
 .bar .track i { display: block; height: 100%; transition: width 0.15s; }
 .b-shield i { background: linear-gradient(180deg, #8af0ff, var(--shield) 55%, #1aa6dd); }
 .b-health i { background: linear-gradient(180deg, #a8ff8a, var(--health) 55%, #2fa52c); }
-.bar b { width: 38px; font-size: 20px; text-align: right; }
+.bar b { width: 44px; font-size: 22px; text-align: right; font-style: italic; text-shadow: 0 2px 0 rgba(8, 18, 45, 0.8); }
+.b-shield b { font-size: 18px; }
 
 /* kit (bottom right) */
 .kit { position: absolute; right: 18px; bottom: 18px; display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }

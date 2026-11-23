@@ -6,6 +6,7 @@ import { Avatar } from '../player/avatar.js';
 import { getHeight, props } from '../world/terrain.js';
 import { SUN_DIR } from '../world/sky.js';
 import { WORLD, POIS } from '../config.js';
+import { desertAt, forestAt, snowAt } from '../world/island.js';
 import { settings, applySettings } from '../settings-store.js';
 import { icon } from '../hud/icons.js';
 import { createSettings, optRow, stepValue, schemaById } from './settings.js';
@@ -43,7 +44,8 @@ function findStage() {
         const ang = Math.atan2(-u.x, -u.z) + f;
         wall = Math.max(wall, getHeight(at.x + Math.sin(ang) * d, at.z + Math.cos(ang) * d) - ha - d * 0.2);
       }
-      const score = Math.abs(H(cam) - ha) * 2 + wall + uneven * 4 - ha * 0.03;
+      const biome = (desertAt(at.x, at.z) + snowAt(at.x, at.z, ha) + forestAt(at.x, at.z)) * 30; // grassy meadow backdrop
+      const score = Math.abs(H(cam) - ha) * 2 + wall + uneven * 4 - ha * 0.03 + biome;
       if (!best || score < best.score) best = { score, at, cam };
     }
   }
