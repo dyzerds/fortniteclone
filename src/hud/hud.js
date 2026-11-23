@@ -6,7 +6,7 @@ import '@fontsource/nunito/900.css';
 import './hud.css';
 import * as THREE from 'three';
 import { MATERIALS, WEAPONS, RARITIES, CONSUMABLES, POIS, WORLD, PLAYER, BUILD_COST, AMMO, MAT_CAP, MOVE } from '../config.js';
-import { colors, heights, getHeight } from '../world/terrain.js';
+import { colors, heights, getHeight, paint } from '../world/terrain.js';
 import { icon } from './icons.js';
 import { itemName, itemRarity } from '../loot.js';
 import { settings, keyLabel } from '../settings-store.js';
@@ -52,6 +52,7 @@ function mapImage(size) {
     img.data[o + 3] = 255;
   }
   g.putImageData(img, 0, 0);
+  g.drawImage(paint, 0, 0, size, size); // roads, streets, fields
   return c;
 }
 

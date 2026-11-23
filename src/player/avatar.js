@@ -38,82 +38,114 @@ for (const [name, parent, off] of BONES) {
 
 const capsule = (r, len) => new THREE.CapsuleGeometry(r, len, 4, 10);
 const box = (w, h, d, r = 0.04) => new RoundedBoxGeometry(w, h, d, 2, r);
-const sphere = (r) => new THREE.SphereGeometry(r, 16, 12);
+const ell = (rx, ry = rx, rz = rx, seg = 16) => new THREE.SphereGeometry(1, seg, Math.max(6, (seg * 3) >> 2)).scale(rx, ry, rz);
+// tapered limb along y, centered: rounded ends, top radius a, bottom radius b
+const limb = (a, b, len, seg = 12) => new THREE.LatheGeometry([
+  [0, -len / 2 - b * 0.7], [b * 0.62, -len / 2 - b * 0.55], [b * 0.92, -len / 2 - b * 0.22], [b, -len / 2],
+  [a, len / 2], [a * 0.92, len / 2 + a * 0.22], [a * 0.62, len / 2 + a * 0.55], [0, len / 2 + a * 0.7],
+].map(([x, y]) => new THREE.Vector2(x, y)), seg);
+// torso shell (chest bone space): waist up to the shoulder line, flattened front-to-back
+const torso = () => new THREE.LatheGeometry([
+  [0, -0.09], [0.15, -0.085], [0.168, 0], [0.198, 0.08], [0.222, 0.15], [0.212, 0.2], [0.16, 0.236], [0.075, 0.252], [0, 0.256],
+].map(([x, y]) => new THREE.Vector2(x, y)), 20).scale(1, 1, 0.64);
 
 // ---------- body build ----------
 function buildBody(o, backblingId) {
   const parts = [];
   const add = (bone, geo, color, x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0) => parts.push({ bone, geo, color, x, y, z, rx, ry, rz });
-  const skin = o.skin, top = o.top, bottom = o.bottom, acc = o.accent;
+  const skin = o.skin, top = o.top, bottom = o.bottom, acc = o.accent, hc = o.hairColor;
 
-  add('Hips', box(0.36, 0.2, 0.24, 0.07), bottom, 0, 0.0, 0);
-  add('Hips', box(0.38, 0.06, 0.26, 0.02), acc, 0, 0.09, 0); // belt
-  add('Spine', box(0.32, 0.2, 0.22, 0.08), top, 0, 0.1, 0);
-  add('Chest', box(0.44, 0.3, 0.26, 0.1), top, 0, 0.1, 0);
-  add('Chest', box(0.12, 0.2, 0.03, 0.01), acc, 0.09, 0.1, 0.13);
-  add('Neck', capsule(0.055, 0.06), skin, 0, 0.03, 0);
-  // head
-  add('Head', sphere(0.165).scale(1, 1.08, 1), skin, 0, 0.13, 0.01);
+  // torso
+  add('Hips', ell(0.195, 0.12, 0.132), bottom, 0, -0.02, 0);
+  add('Hips', new THREE.CylinderGeometry(0.173, 0.178, 0.055, 24).scale(1, 1, 0.74), acc, 0, 0.075, 0); // belt
+  add('Hips', box(0.07, 0.05, 0.02, 0.01), '#e9e4d6', 0, 0.075, 0.13); // buckle
+  add('Spine', ell(0.168, 0.13, 0.118), top, 0, 0.07, 0);
+  add('Chest', torso(), top, 0, 0, 0);
+  add('Chest', box(0.05, 0.34, 0.02, 0.01), acc, 0.04, 0.08, 0.125, 0, 0, -0.5); // strap across the chest
+  add('Chest', box(0.05, 0.34, 0.02, 0.01), acc, 0.04, 0.08, -0.125, 0, 0, 0.5);
+  add('Chest', new THREE.TorusGeometry(0.07, 0.022, 8, 18).rotateX(Math.PI / 2), acc, 0, 0.24, 0); // collar
+  add('Neck', limb(0.055, 0.06, 0.07, 10), skin, 0, 0.03, 0);
+  // head: skull, cheeks, face
+  add('Head', ell(0.158, 0.17, 0.16), skin, 0, 0.13, 0);
+  add('Head', ell(0.118, 0.085, 0.118), skin, 0, 0.065, 0.028);
+  add('Head', ell(0.024, 0.03, 0.028, 10), skin, 0, 0.115, 0.155); // nose
   for (const s of [1, -1]) {
-    add('Head', sphere(0.032).scale(0.8, 1.15, 0.5), o.eyes, 0.06 * s, 0.15, 0.158);
-    add('Head', sphere(0.011), '#ffffff', 0.066 * s, 0.165, 0.172);
-    add('Head', box(0.055, 0.014, 0.02, 0.006), o.hairColor === '#000000' ? '#3a2a20' : o.hairColor, 0.062 * s, 0.205, 0.15, 0, 0, -0.15 * s);
-    add('Head', sphere(0.035).scale(0.6, 1, 0.6), skin, 0.165 * s, 0.13, 0); // ears
+    add('Head', ell(0.04, 0.047, 0.02, 12), '#ffffff', 0.058 * s, 0.152, 0.136);
+    add('Head', ell(0.026, 0.032, 0.012, 10), o.eyes, 0.058 * s, 0.15, 0.152);
+    add('Head', ell(0.008, 0.008, 0.004, 6), '#ffffff', 0.066 * s, 0.162, 0.163);
+    add('Head', box(0.062, 0.016, 0.02, 0.007), o.hair === 'none' || hc === '#000000' ? '#3a2a20' : hc, 0.06 * s, 0.208, 0.146, 0, 0, -0.14 * s); // brows
+    add('Head', ell(0.026, 0.042, 0.018, 10), skin, 0.152 * s, 0.13, 0); // ears
   }
-  add('Head', box(0.06, 0.016, 0.02, 0.008), '#8a3a3a', 0, 0.075, 0.155);
+  add('Head', ell(0.034, 0.011, 0.01, 10), '#8a3a3a', 0, 0.068, 0.148); // mouth
   // hair / headgear
-  const hc = o.hairColor;
   if (o.hair === 'spiky') {
-    add('Head', sphere(0.172).scale(1.02, 0.75, 1.02), hc, 0, 0.2, -0.015);
-    for (let i = 0; i < 7; i++) {
-      const a = (i / 7) * Math.PI * 2;
-      add('Head', new THREE.ConeGeometry(0.05, 0.16, 6), hc, Math.cos(a) * 0.1, 0.3, Math.sin(a) * 0.1 - 0.03, Math.sin(a) * 0.8, 0, -Math.cos(a) * 0.8);
+    add('Head', ell(0.162, 0.118, 0.168), hc, 0, 0.205, -0.014);
+    for (let i = 0; i < 9; i++) {
+      const a = (i / 9) * Math.PI * 2 + 0.3, k = 0.75 + (i % 3) * 0.12;
+      add('Head', new THREE.ConeGeometry(0.056, 0.18 + (i % 2) * 0.04, 7), hc, Math.cos(a) * 0.1, 0.29, Math.sin(a) * 0.1 - 0.035, Math.sin(a) * k, 0, -Math.cos(a) * k);
     }
+    for (const x of [-0.07, 0, 0.07]) add('Head', new THREE.ConeGeometry(0.045, 0.14, 6), hc, x, 0.25, 0.12, 1.35, 0, -x * 4); // fringe
   } else if (o.hair === 'bun') {
-    add('Head', sphere(0.172).scale(1.02, 0.8, 1.04), hc, 0, 0.19, -0.02);
-    add('Head', sphere(0.08), hc, 0, 0.27, -0.14);
+    add('Head', ell(0.166, 0.125, 0.172), hc, 0, 0.195, -0.016);
+    add('Head', ell(0.078), hc, 0, 0.3, -0.13);
+    for (const s of [1, -1]) add('Head', ell(0.04, 0.09, 0.04, 10), hc, 0.135 * s, 0.11, 0.06, 0, 0, 0.1 * s); // side locks
   } else if (o.hair === 'mohawk') {
-    add('Head', sphere(0.168).scale(1, 0.7, 1), hc, 0, 0.18, -0.02);
-    for (let i = 0; i < 5; i++) add('Head', box(0.05, 0.14, 0.07, 0.02), hc, 0, 0.32, 0.1 - i * 0.065, -0.3 + i * 0.15, 0, 0);
+    add('Head', ell(0.156, 0.11, 0.16), hc, 0, 0.19, -0.02);
+    for (let i = 0; i < 6; i++) add('Head', new THREE.ConeGeometry(0.06, 0.2 - Math.abs(i - 2) * 0.02, 4).scale(0.45, 1, 1.2), hc, 0, 0.32, 0.12 - i * 0.055, -0.45 + i * 0.18, 0, 0);
   }
   if (o.head === 'goggles') {
-    add('Head', new THREE.TorusGeometry(0.17, 0.022, 6, 24).rotateX(Math.PI / 2), '#2a2f3a', 0, 0.24, 0);
-    for (const s of [1, -1]) add('Head', new THREE.CylinderGeometry(0.05, 0.05, 0.04, 14).rotateX(Math.PI / 2), o.headColor, 0.065 * s, 0.26, 0.15, -0.6, 0, 0);
+    add('Head', new THREE.TorusGeometry(0.164, 0.018, 6, 28).rotateX(Math.PI / 2 - 0.12), '#2a2f3a', 0, 0.225, 0);
+    for (const s of [1, -1]) {
+      add('Head', new THREE.CylinderGeometry(0.054, 0.058, 0.05, 16).rotateX(Math.PI / 2), '#2a2f3a', 0.064 * s, 0.245, 0.14, -0.55, 0, 0);
+      add('Head', new THREE.CylinderGeometry(0.044, 0.044, 0.02, 16).rotateX(Math.PI / 2), o.headColor, 0.064 * s, 0.258, 0.163, -0.55, 0, 0);
+    }
   } else if (o.head === 'cap') {
-    add('Head', sphere(0.178).scale(1, 0.62, 1), o.headColor, 0, 0.22, 0);
-    add('Head', box(0.24, 0.025, 0.16, 0.01), o.headColor, 0, 0.2, 0.17);
+    add('Head', ell(0.172, 0.12, 0.176), o.headColor, 0, 0.215, 0);
+    add('Head', new THREE.CylinderGeometry(0.15, 0.15, 0.02, 20, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 0.9), o.headColor, 0, 0.215, 0.115, 0.12, 0, 0);
+    add('Head', ell(0.02, 0.012, 0.02, 8), acc, 0, 0.335, 0);
   } else if (o.head === 'helmet') {
-    add('Head', sphere(0.205).scale(1, 1.05, 1.02), o.headColor, 0, 0.14, 0);
-    add('Head', sphere(0.17).scale(1.05, 0.62, 0.7), o.visor, 0, 0.13, 0.085);
-    add('Head', new THREE.ConeGeometry(0.035, 0.18, 6), o.accent, 0, 0.38, -0.02, -0.3, 0, 0);
+    add('Head', ell(0.2, 0.205, 0.205), o.headColor, 0, 0.14, 0);
+    add('Head', ell(0.168, 0.1, 0.12), o.visor, 0, 0.135, 0.1);
+    add('Head', new THREE.ConeGeometry(0.035, 0.2, 6), acc, 0, 0.36, -0.03, -0.35, 0, 0);
+    for (const s of [1, -1]) add('Head', new THREE.CylinderGeometry(0.05, 0.05, 0.04, 14).rotateZ(Math.PI / 2), acc, 0.2 * s, 0.13, 0);
   }
-  // arms
+  // arms and legs (both sides)
   for (const [side, s] of [['Left', 1], ['Right', -1]]) {
-    add(`${side}UpperArm`, sphere(0.085), top, 0, -0.02, 0); // shoulder
-    add(`${side}UpperArm`, capsule(0.06, 0.18), top, 0, -0.14, 0);
-    add(`${side}LowerArm`, capsule(0.052, 0.17), skin, 0, -0.12, 0);
-    add(`${side}LowerArm`, new THREE.CylinderGeometry(0.06, 0.06, 0.07, 10), o.gloves, 0, -0.2, 0);
-    add(`${side}Hand`, box(0.08, 0.1, 0.06, 0.025), o.gloves, 0, -0.04, 0.005);
-    add(`${side}UpperLeg`, capsule(0.09, 0.28), bottom, 0, -0.22, 0);
-    add(`${side}LowerLeg`, capsule(0.075, 0.26), bottom, 0, -0.2, 0);
-    add(`${side}LowerLeg`, new THREE.CylinderGeometry(0.085, 0.09, 0.2, 10), o.boots, 0, -0.3, 0);
-    add(`${side}Foot`, box(0.12, 0.1, 0.25, 0.04), o.boots, 0, -0.03, 0.05);
-    void s;
+    add(`${side}UpperArm`, ell(0.084, 0.08, 0.08), top, 0.008 * s, -0.02, 0); // shoulder
+    add(`${side}UpperArm`, limb(0.072, 0.06, 0.17), top, 0, -0.135, 0);
+    add(`${side}UpperArm`, new THREE.TorusGeometry(0.058, 0.014, 6, 16).rotateX(Math.PI / 2), acc, 0, -0.235, 0); // sleeve cuff
+    add(`${side}LowerArm`, ell(0.056, 0.056, 0.056, 10), skin, 0, 0, 0); // elbow
+    add(`${side}LowerArm`, limb(0.058, 0.05, 0.15), skin, 0, -0.11, 0);
+    add(`${side}LowerArm`, new THREE.CylinderGeometry(0.062, 0.056, 0.08, 12), o.gloves, 0, -0.205, 0);
+    add(`${side}Hand`, ell(0.038, 0.058, 0.052, 12), o.gloves, 0, -0.045, 0);
+    add(`${side}Hand`, box(0.046, 0.075, 0.088, 0.022), o.gloves, 0, -0.1, 0.004);
+    add(`${side}Hand`, limb(0.018, 0.016, 0.04, 8), o.gloves, -0.012 * s, -0.06, 0.05, -0.6, 0, 0); // thumb
+    add(`${side}UpperLeg`, ell(0.112, 0.11, 0.112, 12), bottom, 0, -0.04, 0); // hip
+    add(`${side}UpperLeg`, limb(0.11, 0.082, 0.29), bottom, 0, -0.2, 0);
+    add(`${side}UpperLeg`, box(0.03, 0.11, 0.09, 0.015), bottom, 0.112 * s, -0.2, 0.01); // side pocket
+    add(`${side}LowerLeg`, ell(0.082, 0.08, 0.082, 10), bottom, 0, 0, 0.004); // knee
+    add(`${side}LowerLeg`, limb(0.08, 0.066, 0.24), bottom, 0, -0.16, 0);
+    add(`${side}LowerLeg`, new THREE.CylinderGeometry(0.084, 0.092, 0.2, 14), o.boots, 0, -0.32, 0);
+    add(`${side}LowerLeg`, new THREE.TorusGeometry(0.085, 0.016, 6, 16).rotateX(Math.PI / 2), acc, 0, -0.22, 0); // boot cuff
+    add(`${side}Foot`, box(0.13, 0.095, 0.25, 0.045), o.boots, 0, -0.02, 0.05);
+    add(`${side}Foot`, ell(0.066, 0.05, 0.07, 12), o.boots, 0, -0.015, 0.15); // toe cap
+    add(`${side}Foot`, box(0.138, 0.03, 0.27, 0.012), '#2a2a30', 0, -0.072, 0.05); // sole
   }
   // back bling
   if (backblingId === 'rocket') {
     for (const s of [1, -1]) {
-      add('Chest', new THREE.CylinderGeometry(0.07, 0.07, 0.34, 12), '#e8edf5', 0.08 * s, 0.08, -0.2);
-      add('Chest', new THREE.ConeGeometry(0.07, 0.12, 12), '#ff3b5c', 0.08 * s, 0.31, -0.2);
+      add('Chest', new THREE.CylinderGeometry(0.07, 0.07, 0.34, 14), '#e8edf5', 0.08 * s, 0.08, -0.2);
+      add('Chest', new THREE.ConeGeometry(0.07, 0.12, 14), '#ff3b5c', 0.08 * s, 0.31, -0.2);
       add('Chest', new THREE.ConeGeometry(0.06, 0.1, 10).rotateX(Math.PI), '#ffb21e', 0.08 * s, -0.13, -0.2);
+      add('Chest', new THREE.TorusGeometry(0.071, 0.012, 6, 14).rotateX(Math.PI / 2), '#ff3b5c', 0.08 * s, 0.0, -0.2);
     }
     add('Chest', box(0.2, 0.16, 0.06, 0.02), '#2a2f3a', 0, 0.1, -0.15);
   } else if (backblingId === 'leaf') {
-    add('Chest', sphere(0.2).scale(1, 1.25, 0.35), '#3fae3a', 0, 0.05, -0.2);
+    add('Chest', ell(0.2, 0.25, 0.07), '#3fae3a', 0, 0.05, -0.2);
     add('Chest', box(0.02, 0.4, 0.02, 0.005), '#2a6a24', 0, 0.05, -0.27);
   }
 
-  const color = new THREE.Color();
+  const color = new THREE.Color(), shadeCol = new THREE.Color();
   const geos = parts.map((p) => {
     let g = p.geo.index ? p.geo.toNonIndexed() : p.geo;
     g.deleteAttribute('uv');
@@ -121,11 +153,15 @@ function buildBody(o, backblingId) {
     g.applyMatrix4(new THREE.Matrix4().compose(
       new THREE.Vector3(w[0] + p.x, w[1] + p.y, w[2] + p.z),
       new THREE.Quaternion().setFromEuler(new THREE.Euler(p.rx, p.ry, p.rz)), new THREE.Vector3(1, 1, 1)));
-    const n = g.attributes.position.count;
+    const n = g.attributes.position.count, nrm = g.attributes.normal;
     color.set(p.color);
     const c = new Float32Array(n * 3), si = new Uint16Array(n * 4), sw = new Float32Array(n * 4);
     const bi = BONE_INDEX[p.bone];
-    for (let i = 0; i < n; i++) { c[i * 3] = color.r; c[i * 3 + 1] = color.g; c[i * 3 + 2] = color.b; si[i * 4] = bi; sw[i * 4] = 1; }
+    for (let i = 0; i < n; i++) {
+      // baked occlusion: undersides a little darker, so the forms read without textures
+      shadeCol.copy(color).multiplyScalar(0.8 + 0.2 * (nrm.getY(i) * 0.5 + 0.5));
+      c[i * 3] = shadeCol.r; c[i * 3 + 1] = shadeCol.g; c[i * 3 + 2] = shadeCol.b; si[i * 4] = bi; sw[i * 4] = 1;
+    }
     g.setAttribute('color', new THREE.BufferAttribute(c, 3));
     g.setAttribute('skinIndex', new THREE.BufferAttribute(si, 4));
     g.setAttribute('skinWeight', new THREE.BufferAttribute(sw, 4));
@@ -454,4 +490,9 @@ export class Avatar {
 
   handWorld(side, out) { return this.bones[`${side}Hand`].getWorldPosition(out); }
 }
-Avatar.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.55, metalness: 0.05 });
+Avatar.material = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.05 });
+// soft rim light so characters pop against grass and sky
+Avatar.material.onBeforeCompile = (sh) => {
+  sh.fragmentShader = sh.fragmentShader.replace('#include <dithering_fragment>',
+    'float rim = pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), 3.0);\n gl_FragColor.rgb += rim * 0.22 * vec3(1.0, 0.97, 0.9);\n#include <dithering_fragment>');
+};

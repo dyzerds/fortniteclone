@@ -58,7 +58,7 @@ export function createSky(scene) {
   const clouds = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ vertexColors: true, fog: false }));
   scene.add(clouds);
 
-  const hemi = new THREE.HemisphereLight('#cfeaff', '#6f9a3a', 1.35);
+  const hemi = new THREE.HemisphereLight('#d4ecff', '#a89a78', 1.45);
   scene.add(hemi);
   const sun = new THREE.DirectionalLight('#fff3dc', 2.6);
   sun.castShadow = true;
@@ -103,7 +103,7 @@ const GradeShader = {
 export function createComposer(renderer, scene, camera) {
   const composer = new EffectComposer(renderer);
   composer.addPass(new RenderPass(scene, camera));
-  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.22, 0.45, 0.88);
+  const bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.2, 0.45, 0.94);
   composer.addPass(bloom);
   composer.addPass(new OutputPass());
   const grade = new ShaderPass(GradeShader);

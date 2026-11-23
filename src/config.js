@@ -1,22 +1,7 @@
 // All gameplay tunables. Pure data: safe to import from node tests.
 
-export const WORLD = {
-  size: 1200,          // terrain square side (m), centered on origin
-  res: 385,            // heightfield points per side
-  seed: 1337,
-  waterLevel: 0,
-  islandRadius: 470,
-};
-
-// Named towns. Terrain flattens to `h` inside radius r; pois.js builds houses there.
-export const POIS = [
-  { name: 'Pebblewick',     x: -170, z: -150, r: 70, h: 7.5 },
-  { name: 'Mossbrook Mill', x: 190,  z: -200, r: 60, h: 11.25 },
-  { name: 'Rustbolt Yard',  x: 230,  z: 150,  r: 70, h: 7.5 },
-  { name: 'Lilac Lanes',    x: -60,  z: 60,   r: 80, h: 15 },
-  { name: 'Gullrock Harbor',x: -300, z: 170,  r: 60, h: 3.75 },
-  { name: 'Thistle Heights',x: 40,   z: -320, r: 55, h: 22.5 },
-];
+// World size and named towns live with the rest of the island layout.
+export { WORLD, POIS } from './world/island.js';
 
 export const GRID = {
   cell: 5,             // build cell width (m)

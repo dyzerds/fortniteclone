@@ -52,6 +52,58 @@ function pieceGeometry(type, tiles) {
 const geoCache = {};
 const geoFor = (type, tiles) => (geoCache[type + tiles.join('')] ??= pieceGeometry(type, tiles));
 
+// Town roofs: a cone piece can carry a gable slice { axis: 'x'|'z', row, rows }. The building's whole
+// depth (rows cells across the ridge) gets one pitched roof; each cell piece is its slice of it.
+const PITCH = 0.7, EAVE = 0.6;
+const gableTop = (u, D) => PITCH * (D / 2 - Math.abs(u)); // roof height over a point u across the ridge
+function gableProfile({ row, rows }) {
+  const D = rows * C, a = row * C - D / 2, b = a + C; // across-ridge span of this slice (building-centered)
+  const us = [a, ...(a < 0 && b > 0 ? [0] : []), b];
+  return { us, ys: us.map((u) => gableTop(u, D)), off: -(a + b) / 2, D };
+}
+function gableGeometry(gb) {
+  const { us, ys, off, D } = gableProfile(gb);
+  // ridge along local x; across the ridge is local z = u + off
+  const pos = [], uv = [];
+  const V = (x, y, z, u, v) => { pos.push(x, y, z); uv.push(u, v); };
+  const tri = (a, b, c) => { V(...a); V(...b); V(...c); };
+  const quad = (a, b, c, d) => { tri(a, b, c); tri(a, c, d); };
+  const hx = C / 2, trimUV = [0.5, 0.05];
+  const roofV = (u) => 0.125 + 0.875 * (u - us[0]) / C; // shingle rows run along the ridge
+  for (let i = 0; i < us.length - 1; i++) {
+    const [u0, u1] = [us[i], us[i + 1]], [y0, y1] = [ys[i], ys[i + 1]], z0 = u0 + off, z1 = u1 + off;
+    // sloped top
+    quad([-hx, y0, z0, 0, roofV(u0)], [-hx, y1, z1, 0, roofV(u1)], [hx, y1, z1, 1, roofV(u1)], [hx, y0, z0, 1, roofV(u0)]);
+    // gable-end caps (only seen at the building ends)
+    quad([-hx, 0, z0, ...trimUV], [-hx, 0, z1, ...trimUV], [-hx, y1, z1, ...trimUV], [-hx, y0, z0, ...trimUV]);
+    quad([hx, 0, z1, ...trimUV], [hx, 0, z0, ...trimUV], [hx, y0, z0, ...trimUV], [hx, y1, z1, ...trimUV]);
+  }
+  const zA = us[0] + off, zB = us[us.length - 1] + off;
+  quad([-hx, 0, zB, ...trimUV], [-hx, 0, zA, ...trimUV], [hx, 0, zA, ...trimUV], [hx, 0, zB, ...trimUV]); // ceiling
+  // eave lips past the outer walls
+  const eave = (u, s) => { const z = u + off, y = gableTop(u, D), ze = z + s * EAVE, ye = y - PITCH * EAVE; quad([-hx, y, z, 0, 0.2], [hx, y, z, 1, 0.2], [hx, ye, ze, 1, 0.13], [-hx, ye, ze, 0, 0.13]); quad([hx, y - 0.12, z, ...trimUV], [-hx, y - 0.12, z, ...trimUV], [-hx, ye - 0.12, ze, ...trimUV], [hx, ye - 0.12, ze, ...trimUV]); };
+  if (gb.row === 0) eave(us[0], -1);
+  if (gb.row === gb.rows - 1) eave(us[us.length - 1], 1);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  if (gb.axis === 'z') g.rotateY(Math.PI / 2);
+  return g;
+}
+const gableKey = (gb) => `gable${gb.axis}${gb.row}/${gb.rows}`;
+const geoOf = (p) => (p.gable ? (geoCache[gableKey(p.gable)] ??= gableGeometry(p.gable)) : geoFor(p.type, p.tiles));
+// collider points of a gable slice (local, before the piece transform)
+function gablePoints(gb) {
+  const { us, ys, off } = gableProfile(gb), pts = [];
+  for (let i = 0; i < us.length; i++) for (const x of [-C / 2, C / 2]) {
+    let px = x, pz = us[i] + off;
+    if (gb.axis === 'z') [px, pz] = [pz, -px];
+    pts.push([px, ys[i], pz], [px, 0, pz]);
+  }
+  return pts;
+}
+
 function placeTransform(p, obj) {
   if (p.type === 'wall') {
     if (p.dir === 'x') { obj.position.set(p.i * C + C / 2, p.l * H, p.k * C); obj.rotation.set(0, 0, 0); }
@@ -82,8 +134,8 @@ export function createBuilding(scene, fx, terrain) {
     const add = (desc) => p.colliders.push(addStatic(desc, tag));
     if (p.type === 'cone') {
       const pts = [];
-      for (const [x, z] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) { _v.set(x * C / 2, 0, z * C / 2).applyMatrix4(p.mesh.matrixWorld); pts.push(_v.x, _v.y, _v.z); }
-      _v.set(0, CONE_H, 0).applyMatrix4(p.mesh.matrixWorld); pts.push(_v.x, _v.y, _v.z);
+      const local = p.gable ? gablePoints(p.gable) : [[-C / 2, 0, -C / 2], [C / 2, 0, -C / 2], [C / 2, 0, C / 2], [-C / 2, 0, C / 2], [0, CONE_H, 0]];
+      for (const [x, y, z] of local) { _v.set(x, y, z).applyMatrix4(p.mesh.matrixWorld); pts.push(_v.x, _v.y, _v.z); }
       const d = R.ColliderDesc.convexHull(new Float32Array(pts));
       if (d) add(d);
       return;
@@ -110,7 +162,7 @@ export function createBuilding(scene, fx, terrain) {
     p.hp = instant ? M.max : M.max * M.start;
     p.built = instant;
     grid.add(p);
-    p.mesh = new THREE.Mesh(geoFor(p.type, p.tiles), p.built ? matFor(p.style) : constructMat(p.style));
+    p.mesh = new THREE.Mesh(geoOf(p), p.built ? matFor(p.style) : constructMat(p.style));
     p.mesh.castShadow = true; p.mesh.receiveShadow = true;
     placeTransform(p, p.mesh);
     p.mesh.matrixAutoUpdate = false;
@@ -147,7 +199,7 @@ export function createBuilding(scene, fx, terrain) {
   function setTiles(p, tiles) {
     unbatch(p);
     p.tiles = tiles;
-    p.mesh.geometry = geoFor(p.type, tiles);
+    p.mesh.geometry = geoOf(p);
     buildColliders(p);
   }
 
@@ -267,12 +319,12 @@ export function createBuilding(scene, fx, terrain) {
     const groups = new Map();
     for (const p of grid.pieces.values()) {
       if (!p.built || p.batch) continue;
-      const key = `${p.style}|${p.type}|${p.tiles.join('')}`;
+      const key = `${p.style}|${p.type}|${p.tiles.join('')}|${p.gable ? gableKey(p.gable) : ''}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(p);
     }
     for (const list of groups.values()) {
-      const im = new THREE.InstancedMesh(geoFor(list[0].type, list[0].tiles), matFor(list[0].style), list.length);
+      const im = new THREE.InstancedMesh(geoOf(list[0]), matFor(list[0].style), list.length);
       im.castShadow = true; im.receiveShadow = true;
       const b = { im, owners: list };
       list.forEach((p, i) => { im.setMatrixAt(i, p.mesh.matrixWorld); p.batch = b; p.bi = i; scene.remove(p.mesh); });
