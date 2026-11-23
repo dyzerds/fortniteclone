@@ -142,7 +142,7 @@ export function createPois(scene) {
     if (b.roofKind === 'gable') {
       const axis = w >= d ? 'x' : 'z', rows = axis === 'x' ? d : w;
       for (let a = 0; a < w; a++) for (let c = 0; c < d; c++)
-        building.place({ type: 'cone', i: i0 + a, k: k0 + c, l: top, gable: { axis, row: axis === 'x' ? c : a, rows } }, mat, opt(b.roof));
+        building.place({ type: 'cone', i: i0 + a, k: k0 + c, l: top, gable: { axis, row: axis === 'x' ? c : a, rows, end: b.wall } }, mat, opt(b.roof));
     } else if (b.roofKind === 'flat') {
       for (let a = 0; a < w; a++) for (let c = 0; c < d; c++) if (!broken()) building.place({ type: 'floor', i: i0 + a, k: k0 + c, l: top }, mat, opt(b.roof));
     }

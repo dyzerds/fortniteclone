@@ -52,8 +52,9 @@ function pieceGeometry(type, tiles) {
 const geoCache = {};
 const geoFor = (type, tiles) => (geoCache[type + tiles.join('')] ??= pieceGeometry(type, tiles));
 
-// Town roofs: a cone piece can carry a gable slice { axis: 'x'|'z', row, rows }. The building's whole
+// Town roofs: a cone piece can carry a gable slice { axis: 'x'|'z', row, rows, end? }. The building's whole
 // depth (rows cells across the ridge) gets one pitched roof; each cell piece is its slice of it.
+// Geometry group 0 is the roof, group 1 the gable-end caps, drawn with the wall style `end` when given.
 const PITCH = 0.7, EAVE = 0.6;
 const gableTop = (u, D) => PITCH * (D / 2 - Math.abs(u)); // roof height over a point u across the ridge
 function gableProfile({ row, rows }) {
@@ -64,19 +65,23 @@ function gableProfile({ row, rows }) {
 function gableGeometry(gb) {
   const { us, ys, off, D } = gableProfile(gb);
   // ridge along local x; across the ridge is local z = u + off
-  const pos = [], uv = [];
-  const V = (x, y, z, u, v) => { pos.push(x, y, z); uv.push(u, v); };
+  const pos = [], uv = [], capPos = [], capUV = [];
+  let P = pos, U = uv;
+  const V = (x, y, z, u, v) => { P.push(x, y, z); U.push(u, v); };
   const tri = (a, b, c) => { V(...a); V(...b); V(...c); };
   const quad = (a, b, c, d) => { tri(a, b, c); tri(a, c, d); };
   const hx = C / 2, trimUV = [0.5, 0.05];
+  const vMax = Math.max(H, gableTop(0, D)); // wall texture is not tiled: squeeze tall gables into one wall height
+  const capUVof = (z, y) => [z / C + 0.5, y / vMax];
+  const capQuad = (...q) => { P = capPos; U = capUV; quad(...q.map(([x, y, z]) => [x, y, z, ...capUVof(z, y)])); P = pos; U = uv; };
   const roofV = (u) => 0.125 + 0.875 * (u - us[0]) / C; // shingle rows run along the ridge
   for (let i = 0; i < us.length - 1; i++) {
     const [u0, u1] = [us[i], us[i + 1]], [y0, y1] = [ys[i], ys[i + 1]], z0 = u0 + off, z1 = u1 + off;
     // sloped top
     quad([-hx, y0, z0, 0, roofV(u0)], [-hx, y1, z1, 0, roofV(u1)], [hx, y1, z1, 1, roofV(u1)], [hx, y0, z0, 1, roofV(u0)]);
     // gable-end caps (only seen at the building ends)
-    quad([-hx, 0, z0, ...trimUV], [-hx, 0, z1, ...trimUV], [-hx, y1, z1, ...trimUV], [-hx, y0, z0, ...trimUV]);
-    quad([hx, 0, z1, ...trimUV], [hx, 0, z0, ...trimUV], [hx, y0, z0, ...trimUV], [hx, y1, z1, ...trimUV]);
+    capQuad([-hx, 0, z0], [-hx, 0, z1], [-hx, y1, z1], [-hx, y0, z0]);
+    capQuad([hx, 0, z1], [hx, 0, z0], [hx, y0, z0], [hx, y1, z1]);
   }
   const zA = us[0] + off, zB = us[us.length - 1] + off;
   quad([-hx, 0, zB, ...trimUV], [-hx, 0, zA, ...trimUV], [hx, 0, zA, ...trimUV], [hx, 0, zB, ...trimUV]); // ceiling
@@ -85,8 +90,9 @@ function gableGeometry(gb) {
   if (gb.row === 0) eave(us[0], -1);
   if (gb.row === gb.rows - 1) eave(us[us.length - 1], 1);
   const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setAttribute('position', new THREE.Float32BufferAttribute([...pos, ...capPos], 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute([...uv, ...capUV], 2));
+  g.addGroup(0, pos.length / 3, 0); g.addGroup(pos.length / 3, capPos.length / 3, 1);
   g.computeVertexNormals();
   if (gb.axis === 'z') g.rotateY(Math.PI / 2);
   return g;
@@ -123,6 +129,8 @@ export function createBuilding(scene, fx, terrain) {
   const constructMat = (style) => (ghostMats[style] ??= new THREE.MeshStandardMaterial({
     map: styleTexture(style), color: '#9fe3ff', emissive: '#2a7fff', emissiveIntensity: 0.55, transparent: true, opacity: 0.55, depthWrite: false, roughness: 0.6,
   }));
+  // gable slices draw two groups: roof style, then the wall style on the end caps
+  const pieceMat = (p, f = matFor) => (p.gable ? [f(p.style), f(p.gable.end ?? p.style)] : f(p.style));
   const building = new Set();
   const collapseQueue = [];
 
@@ -162,7 +170,7 @@ export function createBuilding(scene, fx, terrain) {
     p.hp = instant ? M.max : M.max * M.start;
     p.built = instant;
     grid.add(p);
-    p.mesh = new THREE.Mesh(geoOf(p), p.built ? matFor(p.style) : constructMat(p.style));
+    p.mesh = new THREE.Mesh(geoOf(p), pieceMat(p, p.built ? matFor : constructMat));
     p.mesh.castShadow = true; p.mesh.receiveShadow = true;
     placeTransform(p, p.mesh);
     p.mesh.matrixAutoUpdate = false;
@@ -288,7 +296,7 @@ export function createBuilding(scene, fx, terrain) {
       const s = Math.min(1, 0.7 + p.buildT * 4);
       p.mesh.scale.setScalar(s);
       if (p.buildT >= M.buildTime) {
-        p.built = true; p.mesh.material = matFor(p.style); p.mesh.scale.setScalar(1);
+        p.built = true; p.mesh.material = pieceMat(p); p.mesh.scale.setScalar(1);
         p.mesh.updateMatrix(); p.mesh.matrixAutoUpdate = false; building.delete(p);
       }
     }
@@ -319,12 +327,12 @@ export function createBuilding(scene, fx, terrain) {
     const groups = new Map();
     for (const p of grid.pieces.values()) {
       if (!p.built || p.batch) continue;
-      const key = `${p.style}|${p.type}|${p.tiles.join('')}|${p.gable ? gableKey(p.gable) : ''}`;
+      const key = `${p.style}|${p.type}|${p.tiles.join('')}|${p.gable ? gableKey(p.gable) + p.gable.end : ''}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(p);
     }
     for (const list of groups.values()) {
-      const im = new THREE.InstancedMesh(geoOf(list[0]), matFor(list[0].style), list.length);
+      const im = new THREE.InstancedMesh(geoOf(list[0]), pieceMat(list[0]), list.length);
       im.castShadow = true; im.receiveShadow = true;
       const b = { im, owners: list };
       list.forEach((p, i) => { im.setMatrixAt(i, p.mesh.matrixWorld); p.batch = b; p.bi = i; scene.remove(p.mesh); });
